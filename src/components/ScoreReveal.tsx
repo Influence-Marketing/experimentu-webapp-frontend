@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { scoringConfig } from "@/lib/scoring-config";
 import { ordinal, pathPlan, weakestDomains } from "@/lib/scoring";
 import type { Entry } from "@/lib/types";
+import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 
 function easeOutCubic(t: number) {
@@ -42,7 +42,7 @@ export function ScoreReveal({ entry }: { entry: Entry }) {
   const [display, setDisplay] = useState(0);
   const [barsDrawn, setBarsDrawn] = useState(false);
   const frame = useRef<number | null>(null);
-  const config = scoringConfig;
+  const { config } = useContent();
   const delta = entry.baselineTotal != null ? result.total - entry.baselineTotal : null;
   const levers = weakestDomains(result, 2);
   const path = pathPlan(config, result);

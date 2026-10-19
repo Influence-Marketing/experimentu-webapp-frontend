@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { scoringConfig } from "@/lib/scoring-config";
 import { computeResult } from "@/lib/scoring";
 import {
   addEntry,
@@ -14,6 +13,7 @@ import {
   saveFlow,
 } from "@/lib/storage";
 import type { DomainId, DomainInputState, Entry, FlowState, Participant } from "@/lib/types";
+import { useContent } from "./ContentProvider";
 
 type FlowContextValue = {
   ready: boolean;
@@ -21,6 +21,8 @@ type FlowContextValue = {
   setParticipant: (patch: Partial<Participant> | Participant) => void;
   setDomainInputs: (id: DomainId, inputs: DomainInputState) => void;
   setUpgrade: (key: string, value: number | null) => void;
+  /** Records a successful form POST; a lead submission also replaces the bearer token. */
+  markSubmitted: (formHandle: string, key: string, token?: string | null) => void;
   completeProtocols: () => Entry;
   currentEntry: Entry | null;
   setCurrentEntryId: (id: string | null) => void;
@@ -30,6 +32,7 @@ type FlowContextValue = {
 const FlowContext = createContext<FlowContextValue | null>(null);
 
 export function FlowProvider({ children }: { children: React.ReactNode }) {
+  const { config } = useContent();
   const [ready, setReady] = useState(false);
   const [flow, setFlow] = useState<FlowState>(emptyFlow);
 
@@ -63,15 +66,23 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const markSubmitted = useCallback((formHandle: string, key: string, token?: string | null) => {
+    setFlow((prev) => ({
+      ...prev,
+      submissions: { ...prev.submissions, [formHandle]: { key, submittedAt: new Date().toISOString() } },
+      authToken: token === undefined ? prev.authToken : token,
+    }));
+  }, []);
+
   const completeProtocols = useCallback(() => {
-    const result = computeResult(flow.participant, flow.inputs);
+    const result = computeResult(flow.participant, flow.inputs, config);
     const baseline =
       flow.participant.phase === "week8" ? latestBaseline(flow.participant.email) : null;
     const created: Entry = {
       id: newId(),
       createdAt: new Date().toISOString(),
       phase: flow.participant.phase,
-      configVersion: scoringConfig.version,
+      configVersion: config.version,
       participant: { ...flow.participant },
       inputs: flow.inputs,
       upgrades: flow.upgrades,
@@ -80,11 +91,10 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       baselineTotal: baseline ? baseline.result.total : null,
     };
     addEntry(created);
-    const next = { ...flow, currentEntryId: created.id };
-    saveFlow(next);
-    setFlow(next);
+    // Functional update: the last protocol's submission is recorded just before this runs.
+    setFlow((prev) => saveFlow({ ...prev, currentEntryId: created.id }));
     return created;
-  }, [flow]);
+  }, [flow, config]);
 
   const setCurrentEntryId = useCallback((id: string | null) => {
     setFlow((prev) => ({ ...prev, currentEntryId: id }));
@@ -106,6 +116,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setParticipant,
       setDomainInputs,
       setUpgrade,
+      markSubmitted,
       completeProtocols,
       currentEntry,
       setCurrentEntryId,
@@ -117,6 +128,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setParticipant,
       setDomainInputs,
       setUpgrade,
+      markSubmitted,
       completeProtocols,
       currentEntry,
       setCurrentEntryId,

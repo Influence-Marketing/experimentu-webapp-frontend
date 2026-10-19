@@ -11,6 +11,7 @@ const domains: Domain[] = [
     unit: "bpm",
     color: "cranberry",
     tagline: "The idle speed of your engine.",
+    stepTitle: "The protocol",
     howTo: [
       "Measure first thing in the morning, before coffee, before standing.",
       "Count your pulse for a full 60 seconds.",
@@ -21,6 +22,7 @@ const domains: Domain[] = [
       key: "rhr",
       label: "Morning resting heart rate",
       readingLabel: "Morning",
+      averageLabel: "Your average",
       minReadings: 1,
       maxReadings: 3,
       min: 30,
@@ -40,6 +42,15 @@ const domains: Domain[] = [
         { max: 100, points: 4, label: "91–100 bpm", comparison: "In the higher range — one of the fastest levers to move." },
         { max: null, points: 0, label: ">100 bpm", flag: "rhr-high", comparison: "Above the range this tool is built to interpret." },
       ],
+    },
+    form: {
+      handle: "protocol_i_nervous_system",
+      fields: {
+        readings: ["morning_1", "morning_2", "morning_3"],
+        derived: "your_average",
+        upgradeToggle: "wearing_a_tracker",
+        upgrade: "heart_rate_variability",
+      },
     },
     lever: "Consistent zone-2 cardio and better sleep can lower resting heart rate measurably inside 8 weeks.",
     upgrade: {
@@ -62,6 +73,7 @@ const domains: Domain[] = [
     unit: "reps",
     color: "sage",
     tagline: "Functional strength you can count.",
+    stepTitle: "The protocol",
     howTo: [
       "Use an armless chair against a wall.",
       "Cross your arms over your chest.",
@@ -109,6 +121,14 @@ const domains: Domain[] = [
         },
       ],
     },
+    form: {
+      handle: "protocol_ii_movement",
+      fields: {
+        value: "full_stands_in_30_seconds",
+        upgradeToggle: "at_a_station_with_a_dynamometer",
+        upgrade: "grip_strength",
+      },
+    },
     lever: "Two strength sessions a week is the single most reliable way to add reps by your retest.",
     upgrade: {
       key: "grip",
@@ -130,6 +150,7 @@ const domains: Domain[] = [
     unit: "ratio",
     color: "gold",
     tagline: "One tape measure. One honest number.",
+    stepTitle: "The protocol",
     howTo: [
       "Stand relaxed — no pulling in.",
       "Measure your waist at the navel.",
@@ -140,6 +161,8 @@ const domains: Domain[] = [
       waistKey: "waist",
       heightKey: "height",
       units: ["in", "cm"],
+      unitsLabel: "Units",
+      unitLabels: ["Inches", "Centimetres"],
       defaultUnit: "in",
       waist: {
         label: "Waist at navel",
@@ -151,6 +174,8 @@ const domains: Domain[] = [
         in: { min: 48, max: 84, placeholder: "65" },
         cm: { min: 120, max: 215, placeholder: "165" },
       },
+      ratioLabel: "Waist ÷ height",
+      hint: "You measure. We divide. Same units both sides, and the ratio never lies.",
     },
     scoring: {
       type: "bands",
@@ -164,6 +189,17 @@ const domains: Domain[] = [
         { max: 0.6, points: 5, label: "0.56–0.60", comparison: "Above the healthy threshold — a meaningful, movable signal." },
         { max: null, points: 0, label: ">0.60", flag: "wthr-high", comparison: "Above the range this tool is built to interpret." },
       ],
+    },
+    form: {
+      handle: "protocol_iii_metabolism",
+      fields: {
+        units: "units",
+        waist: "waist_at_navel",
+        height: "height",
+        derived: "waist_height",
+        upgradeToggle: "wearing_a_cgm",
+        upgrade: "average_glucose",
+      },
     },
     lever: "Protein-forward meals and daily walking shift this ratio more reliably than any supplement.",
     upgrade: {
@@ -186,6 +222,7 @@ const domains: Domain[] = [
     unit: "mmHg",
     color: "blue",
     tagline: "The number your doctor asks about first.",
+    stepTitle: "The protocol",
     howTo: [
       "Sit and rest for five full minutes first.",
       "Feet flat, arm supported at heart level.",
@@ -196,8 +233,10 @@ const domains: Domain[] = [
       key: "bp",
       minReadings: 1,
       maxReadings: 2,
-      systolic: { label: "Systolic", min: 60, max: 260, placeholder: "118" },
-      diastolic: { label: "Diastolic", min: 30, max: 160, placeholder: "76" },
+      averageLabel: "Your average",
+      hint: "Categories per the 2025 AHA/ACC Blood Pressure Guideline.",
+      systolic: { label: "Systolic", unit: "sys", min: 60, max: 260, placeholder: "118" },
+      diastolic: { label: "Diastolic", unit: "dia", min: 30, max: 160, placeholder: "76" },
     },
     scoring: {
       type: "bp-category",
@@ -210,6 +249,18 @@ const domains: Domain[] = [
         { id: "elevated", label: "Elevated", reading: "120–129 and <80", points: 15, systolicMin: 120, diastolicMin: null, comparison: "In the Elevated range by AHA/ACC criteria — the earliest, easiest place to act." },
         { id: "normal", label: "Normal", reading: "<120/80", points: 20, systolicMin: null, diastolicMin: null, comparison: "In the Normal range by AHA/ACC criteria." },
       ],
+    },
+    form: {
+      handle: "protocol_iv_evidence",
+      fields: {
+        bp: [
+          { systolic: "reading_1_sys", diastolic: "reading_1_dia" },
+          { systolic: "reading_2_sys", diastolic: "reading_2_dia" },
+        ],
+        derived: "your_average",
+        upgradeToggle: "at_the_inbody_station",
+        upgrade: "body_fat_percentage",
+      },
     },
     lever: "Sodium awareness, movement, and sleep each move blood pressure — together they move it fastest.",
     upgrade: {
@@ -232,6 +283,7 @@ const domains: Domain[] = [
     unit: "index",
     color: "lavender",
     tagline: "How the last two weeks actually felt.",
+    stepTitle: "The protocol",
     howTo: [
       "Think about the past two weeks.",
       "Rate each statement from 0 (at no time) to 5 (all of the time).",
@@ -267,6 +319,18 @@ const domains: Domain[] = [
         { minRaw: 13, comparison: "In the moderate well-being range on a validated global index." },
         { minRaw: 0, comparison: "In the lower well-being range — the domain most responsive to the next 8 weeks." },
       ],
+    },
+    form: {
+      handle: "protocol_v_mindset",
+      fields: {
+        answers: [
+          "i_have_felt_cheerful_and_in_good_spirits",
+          "i_have_felt_calm_and_relaxed",
+          "i_have_felt_active_and_vigorous",
+          "i_woke_up_feeling_fresh_and_rested",
+          "my_daily_life_has_been_filled_with_things_that_interest_me",
+        ],
+      },
     },
     lever: "Well-being is the most movable domain on this page — sleep, light, and connection all count.",
     upgrade: null,
