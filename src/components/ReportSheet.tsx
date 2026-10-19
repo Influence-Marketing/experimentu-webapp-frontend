@@ -1,11 +1,11 @@
 "use client";
 
-import { scoringConfig } from "@/lib/scoring-config";
 import { ordinal, pathPlan, upgradePercentile } from "@/lib/scoring";
 import type { Entry } from "@/lib/types";
+import { useContent } from "./ContentProvider";
 
 export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => void }) {
-  const config = scoringConfig;
+  const { config } = useContent();
   const { result, participant, phase } = entry;
   const path = pathPlan(config, result);
   const extras = config.domains

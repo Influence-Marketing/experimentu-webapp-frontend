@@ -6,6 +6,7 @@ import type {
   BpReading,
   Domain,
   DomainInputState,
+  LabelText,
   MeasureUnit,
   NumberInput,
   Participant,
@@ -13,8 +14,13 @@ import type {
   WaistHeightInput,
   Who5Input,
 } from "@/lib/types";
+import { FieldLabel } from "./ui/FieldLabel";
 import { NumberField } from "./ui/NumberField";
 import { SegToggle } from "./ui/SegToggle";
+
+function readingLabel(labels: LabelText[] | undefined, i: number, base: string, optional: string | null) {
+  return labels?.[i] ?? { label: `${base} ${i + 1}`, opt: optional ?? undefined };
+}
 
 function ReadingsFields({
   domain,
@@ -37,10 +43,9 @@ function ReadingsFields({
     <>
       {Array.from({ length: spec.maxReadings }).map((_, i) => (
         <div className="field-block" key={i}>
-          <label className="field-label">
-            {spec.readingLabel} {i + 1}
-            {i >= spec.minReadings ? <span className="opt"> — optional</span> : null}
-          </label>
+          <FieldLabel
+            {...readingLabel(spec.readingLabels, i, spec.readingLabel, i >= spec.minReadings ? "optional" : null)}
+          />
           <NumberField
             value={readings[i] ?? null}
             onChange={(v) => setReading(i, v)}
@@ -54,7 +59,7 @@ function ReadingsFields({
         </div>
       ))}
       <div className="derived-readout">
-        <span className="dr-label">Your average</span>
+        <span className="dr-label">{spec.averageLabel}</span>
         <span className={`dr-value${avg == null ? " placeholder" : ""}`}>
           {avg == null ? "——" : `${Math.round(avg)} ${spec.unit}`}
         </span>
@@ -124,10 +129,10 @@ function WaistHeightFields({
   return (
     <>
       <div className="field-block">
-        <label className="field-label">Units</label>
+        <label className="field-label">{spec.unitsLabel}</label>
         <SegToggle
           options={spec.units}
-          labels={["Inches", "Centimetres"]}
+          labels={spec.unitLabels}
           value={unit}
           onChange={(next) => onInputs({ ...inputs, unit: next, waist: null, height: null })}
         />
@@ -161,10 +166,10 @@ function WaistHeightFields({
         </div>
       </div>
       <div className="derived-readout">
-        <span className="dr-label">Waist ÷ height</span>
+        <span className="dr-label">{spec.ratioLabel}</span>
         <span className={`dr-value${ratio == null ? " placeholder" : ""}`}>{ratio ?? "0.——"}</span>
       </div>
-      <p className="field-hint">You measure. We divide. Same units both sides, and the ratio never lies.</p>
+      <p className="field-hint">{spec.hint}</p>
     </>
   );
 }
@@ -179,8 +184,8 @@ function BpFields({
   onInputs: (next: DomainInputState) => void;
 }) {
   const spec = domain.input as BpInput;
-  const readings = ((inputs.readings as BpReading[] | undefined) || [{}, {}]).slice();
-  while (readings.length < 2) readings.push({});
+  const readings = ((inputs.readings as BpReading[] | undefined) || []).slice();
+  while (readings.length < spec.maxReadings) readings.push({});
   const setReading = (index: number, key: "systolic" | "diastolic", value: number | null) => {
     const next = readings.map((r, i) => (i === index ? { ...r, [key]: value } : r));
     onInputs({ ...inputs, readings: next as BpReading[] });
@@ -188,22 +193,20 @@ function BpFields({
   const complete = readings.filter((r) => Number.isFinite(r.systolic) && Number.isFinite(r.diastolic));
   const sys = complete.length ? Math.round(mean(complete.map((r) => r.systolic))!) : null;
   const dia = complete.length ? Math.round(mean(complete.map((r) => r.diastolic))!) : null;
-  const citation = domain.scoring.type === "bp-category" ? domain.scoring.citation : "";
   return (
     <>
-      {[0, 1].map((i) => (
+      {Array.from({ length: spec.maxReadings }).map((_, i) => (
         <div className="field-block" key={i}>
-          <label className="field-label">
-            Reading {i + 1}
-            {i > 0 ? <span className="opt"> — optional, recommended</span> : null}
-          </label>
+          <FieldLabel
+            {...readingLabel(spec.readingLabels, i, "Reading", i >= spec.minReadings ? "optional, recommended" : null)}
+          />
           <div className="field-row">
             <NumberField
               value={readings[i]?.systolic ?? null}
               onChange={(v) => setReading(i, "systolic", v)}
               min={spec.systolic.min}
               max={spec.systolic.max}
-              unit="sys"
+              unit={spec.systolic.unit}
               placeholder={spec.systolic.placeholder}
               ariaLabel={`Reading ${i + 1} systolic`}
             />
@@ -212,7 +215,7 @@ function BpFields({
               onChange={(v) => setReading(i, "diastolic", v)}
               min={spec.diastolic.min}
               max={spec.diastolic.max}
-              unit="dia"
+              unit={spec.diastolic.unit}
               placeholder={spec.diastolic.placeholder}
               ariaLabel={`Reading ${i + 1} diastolic`}
             />
@@ -220,12 +223,12 @@ function BpFields({
         </div>
       ))}
       <div className="derived-readout">
-        <span className="dr-label">Your average</span>
+        <span className="dr-label">{spec.averageLabel}</span>
         <span className={`dr-value${sys == null ? " placeholder" : ""}`}>
           {sys == null ? "———/——" : `${sys}/${dia}`}
         </span>
       </div>
-      <p className="field-hint">{citation}</p>
+      <p className="field-hint">{spec.hint}</p>
     </>
   );
 }

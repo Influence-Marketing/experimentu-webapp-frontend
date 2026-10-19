@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { scoringConfig } from "@/lib/scoring-config";
+import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { config } = useContent();
   const { flow, reset } = useFlow();
-  const protocolIndex = scoringConfig.domains.findIndex((d) => pathname === `/protocol/${d.id}`);
+  const protocolIndex = config.domains.findIndex((d) => pathname === `/protocol/${d.id}`);
   const isProtocol = protocolIndex >= 0;
   const isAdmin = pathname.startsWith("/admin");
 
@@ -29,7 +30,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       );
     }
     if (isProtocol) {
-      const d = scoringConfig.domains[protocolIndex];
+      const d = config.domains[protocolIndex];
       return (
         <>
           Protocol {d.numeral} · <b>{d.name}</b>
@@ -69,7 +70,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         </Link>
         {isProtocol ? (
           <nav className="stepper" aria-label={`Protocol ${protocolIndex + 1} of 5`}>
-            {scoringConfig.domains.map((d, i) => (
+            {config.domains.map((d, i) => (
               <span
                 key={d.id}
                 className={`st${i < protocolIndex ? " done" : ""}${i === protocolIndex ? " current" : ""}`}
@@ -101,7 +102,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         )}
         <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
         <span>
-          Scoring config v{scoringConfig.version} — prototype, not a medical device
+          Scoring config v{config.version} — prototype, not a medical device
         </span>
       </footer>
     </div>

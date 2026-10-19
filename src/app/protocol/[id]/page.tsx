@@ -10,11 +10,12 @@ export function generateStaticParams() {
 
 export default async function ProtocolPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Domain ids are fixed scoring keys; the CMS-merged domain is read from context in ProtocolScreen.
   const domain = scoringConfig.domains.find((d) => d.id === (id as DomainId));
   if (!domain) notFound();
   return (
     <AppShell>
-      <ProtocolScreen domain={domain} />
+      <ProtocolScreen domainId={domain.id} />
     </AppShell>
   );
 }
