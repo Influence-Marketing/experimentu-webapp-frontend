@@ -9,6 +9,8 @@ const emptyParticipant = (): Participant => ({
   age: null,
   fearWord: "",
   phase: "baseline",
+  marketingOptIn: false,
+  dataConsent: false,
 });
 
 export const emptyFlow = (): FlowState => ({
@@ -16,6 +18,8 @@ export const emptyFlow = (): FlowState => ({
   inputs: {},
   upgrades: {},
   currentEntryId: null,
+  submissions: {},
+  authToken: null,
 });
 
 function readJson<T>(key: string, fallback: T): T {
@@ -70,7 +74,10 @@ export function newId() {
 }
 
 export function loadFlow(): FlowState {
-  return readJson<FlowState>(FLOW_KEY, emptyFlow());
+  // Flows saved by older builds lack newer keys (e.g. submissions); fill them from the defaults.
+  const empty = emptyFlow();
+  const stored = readJson<Partial<FlowState>>(FLOW_KEY, empty);
+  return { ...empty, ...stored, participant: { ...empty.participant, ...stored.participant } };
 }
 
 export function saveFlow(flow: FlowState) {
@@ -92,6 +99,7 @@ export function intakeComplete(p: Participant) {
     Number.isFinite(p.age) &&
     (p.age ?? 0) >= 18 &&
     (p.age ?? 0) <= 105 &&
-    p.fearWord.trim().length > 0
+    p.fearWord.trim().length > 0 &&
+    p.dataConsent === true
   );
 }

@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { scoringConfig } from "@/lib/scoring-config";
 import { downloadCsv, rosterCsv } from "@/lib/csv";
 import { deleteEntry, loadEntries, updateEntry } from "@/lib/storage";
 import type { Entry } from "@/lib/types";
+import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 
 export function AdminRoster() {
   const router = useRouter();
+  const { config } = useContent();
   const { reset, setCurrentEntryId } = useFlow();
   const [entries, setEntries] = useState<Entry[]>([]);
 
@@ -50,7 +51,7 @@ export function AdminRoster() {
             disabled={!entries.length}
             onClick={() =>
               downloadCsv(
-                rosterCsv(entries, scoringConfig),
+                rosterCsv(entries, config),
                 `u-score-roster-${new Date().toISOString().slice(0, 10)}.csv`,
               )
             }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { ContentProvider } from "@/components/ContentProvider";
 import { FlowProvider } from "@/components/FlowProvider";
+import { getSiteContent } from "@/lib/api/content";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,7 +10,8 @@ export const metadata: Metadata = {
     "Five measurements. Five minutes. One number that marks where your experiment begins.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const content = await getSiteContent();
   return (
     <html lang="en">
       <head>
@@ -20,7 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <FlowProvider>{children}</FlowProvider>
+        <ContentProvider content={content}>
+          <FlowProvider>{children}</FlowProvider>
+        </ContentProvider>
       </body>
     </html>
   );

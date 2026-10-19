@@ -13,6 +13,8 @@ export type InputType =
   | "who5";
 export type MeasureUnit = "in" | "cm";
 
+export type LabelText = { label: string; opt?: string };
+
 export type Band = {
   max: number | null;
   points: number;
@@ -65,6 +67,8 @@ export type ReadingsInput = {
   key: string;
   label: string;
   readingLabel: string;
+  readingLabels?: LabelText[];
+  averageLabel: string;
   minReadings: number;
   maxReadings: number;
   min: number;
@@ -94,17 +98,24 @@ export type WaistHeightInput = {
   waistKey: string;
   heightKey: string;
   units: MeasureUnit[];
+  unitsLabel: string;
+  unitLabels: string[];
   defaultUnit: MeasureUnit;
   waist: { label: string; in: RangeSpec; cm: RangeSpec };
   height: { label: string; in: RangeSpec; cm: RangeSpec };
+  ratioLabel: string;
+  hint: string;
 };
 
 export type BpInput = {
   key: string;
   minReadings: number;
   maxReadings: number;
-  systolic: { label: string; min: number; max: number; placeholder: string };
-  diastolic: { label: string; min: number; max: number; placeholder: string };
+  readingLabels?: LabelText[];
+  averageLabel: string;
+  hint: string;
+  systolic: { label: string; unit: string; min: number; max: number; placeholder: string };
+  diastolic: { label: string; unit: string; min: number; max: number; placeholder: string };
 };
 
 export type Who5Input = {
@@ -137,6 +148,23 @@ export type DomainScoring =
       comparisonBands: Who5ComparisonBand[];
     };
 
+/** Statamic field handles a protocol's inputs are submitted under. */
+export type ProtocolFormFields = {
+  readings?: string[];
+  bp?: Array<{ systolic: string; diastolic: string }>;
+  value?: string;
+  units?: string;
+  waist?: string;
+  height?: string;
+  /** Derived readout: the readings average, BP "sys/dia", or waist ÷ height. */
+  derived?: string;
+  answers?: string[];
+  upgradeToggle?: string;
+  upgrade?: string;
+};
+
+export type ProtocolForm = { handle: string; fields: ProtocolFormFields };
+
 export type Domain = {
   id: DomainId;
   numeral: string;
@@ -147,12 +175,14 @@ export type Domain = {
   unit: string;
   color: string;
   tagline: string;
+  stepTitle: string;
   howTo: string[];
   inputType: InputType;
   input: ReadingsInput | NumberInput | WaistHeightInput | BpInput | Who5Input;
   scoring: DomainScoring;
   lever: string;
   upgrade: DomainUpgrade | null;
+  form: ProtocolForm;
 };
 
 export type Quintile = {
@@ -230,6 +260,8 @@ export type Participant = {
   age: number | null;
   fearWord: string;
   phase: Phase;
+  marketingOptIn: boolean;
+  dataConsent: boolean;
 };
 
 export type BpReading = {
@@ -264,6 +296,10 @@ export type FlowState = {
   inputs: Record<string, DomainInputState>;
   upgrades: Record<string, number | null>;
   currentEntryId: string | null;
+  /** Successful form POSTs by Statamic form handle; `key` is the payload that was sent. */
+  submissions: Record<string, { key: string; submittedAt: string }>;
+  /** Bearer token from the lead submission, sent with each protocol submission. */
+  authToken: string | null;
 };
 
 export type ScoringConfig = {
@@ -318,4 +354,33 @@ export type ScoringConfig = {
     percentiles: boolean;
     percentilesNote: string;
   };
+};
+
+export type LeadTextField = LabelText & {
+  placeholder: string;
+  maxLength?: number;
+  note?: string;
+};
+
+export type LeadConsentField = {
+  text: string;
+  required: boolean;
+  /** Value sent inside the checkboxes array when ticked. */
+  value: string;
+};
+
+export type LeadFormContent = {
+  session: { label: string; baselineLabel: string; week8Label: string };
+  firstName: LeadTextField;
+  email: LeadTextField;
+  age: LeadTextField;
+  fearWord: LeadTextField;
+  marketingOptIn: LeadConsentField;
+  dataConsent: LeadConsentField;
+};
+
+export type SiteContent = {
+  config: ScoringConfig;
+  leadForm: LeadFormContent;
+  source: "cms" | "static";
 };
