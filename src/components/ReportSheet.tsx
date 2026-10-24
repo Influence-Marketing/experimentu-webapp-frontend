@@ -1,13 +1,21 @@
 "use client";
 
-import { ordinal, pathPlan, upgradePercentile } from "@/lib/scoring";
+import { hasResult, ordinal, pathPlan, upgradePercentile } from "@/lib/scoring";
 import type { Entry } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 
 export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => void }) {
   const { config } = useContent();
   const { result, participant, phase } = entry;
-  const path = pathPlan(config, result);
+  const path = result.path ?? pathPlan(config, result);
+  // Only domains that were scored, and only the parts of a result that have a value.
+  const domains = result.domains.filter(hasResult);
+  const flags = result.flags.filter((f) => f.title || f.message);
+  const subtitle = [
+    phase === "week8" ? "Week-8 retest" : "Baseline",
+    participant.age != null ? `Age ${participant.age}` : null,
+    entry.configVersion ? `Config v${entry.configVersion}` : null,
+  ].filter(Boolean);
   const extras = config.domains
     .filter((d) => d.upgrade && Number.isFinite(entry.upgrades?.[d.upgrade.key]))
     .map((d) => ({
@@ -34,19 +42,16 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
           <span className="rm-date">{date}</span>
         </div>
         <div className="report-title">
-          <h1>{participant.firstName}’s U Score™</h1>
-          <p className="rt-sub">
-            {phase === "week8" ? "Week-8 retest" : "Baseline"} · Age {participant.age} · Config v
-            {entry.configVersion}
-          </p>
+          <h1>{participant.firstName ? `${participant.firstName}’s U Score™` : "Your U Score™"}</h1>
+          <p className="rt-sub">{subtitle.join(" · ")}</p>
         </div>
         <div className="report-scoreline">
           <div className="report-ring" style={{ "--score": result.total }}>
             {result.total}
           </div>
           <div className="rs-words">
-            <h2>{result.quintile.name}</h2>
-            <p>{result.quintile.meaning}</p>
+            {result.quintile?.name ? <h2>{result.quintile.name}</h2> : null}
+            {result.quintile?.meaning ? <p>{result.quintile.meaning}</p> : null}
             {entry.baselineTotal != null ? (
               <p style={{ marginTop: 8 }}>
                 Baseline {entry.baselineTotal} → {result.total} (
@@ -63,7 +68,7 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
         ) : (
           <p className="report-pathline">Top cohort. The Week-8 target is defending it.</p>
         )}
-        {result.flags.map((flag) => (
+        {flags.map((flag) => (
           <div key={flag.flagId} className={`flag-card${flag.severity === "check" ? " check" : ""}`}>
             <p className="flag-kicker">
               <span>●</span>{" "}
@@ -73,56 +78,62 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
                   ? "One check"
                   : "Talk to your doctor"}
             </p>
-            <h3>{flag.title}</h3>
-            <p>{flag.message}</p>
+            {flag.title ? <h3>{flag.title}</h3> : null}
+            {flag.message ? <p>{flag.message}</p> : null}
           </div>
         ))}
-        <table className="report-table">
-          <thead>
-            <tr>
-              <th>Domain</th>
-              <th>Result</th>
-              <th>Compared to women your age</th>
-              <th>Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.domains.map((d) => {
-              const domain = config.domains.find((x) => x.id === d.id)!;
-              const display =
-                domain.inputType === "who5" || domain.inputType === "bp-readings"
-                  ? domain.inputType === "bp-readings"
-                    ? `${d.value} mmHg`
-                    : `${d.value} / 25`
-                  : `${d.value} ${domain.unit !== "ratio" ? domain.unit : ""}`.trim();
-              return (
-                <tr key={d.id}>
-                  <td className="rt-domain">
-                    <b>
-                      {d.numeral} — {d.name}
-                    </b>
-                    <span>{d.metric}</span>
-                  </td>
-                  <td className="rt-value">
-                    <b>{display}</b>
-                    {domain.inputType !== "who5" ? <span>{d.bandLabel}</span> : null}
-                  </td>
-                  <td className="rt-comparison">
-                    {d.comparison}
-                    {d.percentile ? (
-                      <span className="rt-standing">
-                        ≈ {ordinal(d.percentile.pct)} percentile · {d.percentile.peerLabel}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="rt-pts">
-                    {d.points} / {d.max}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {domains.length ? (
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Result</th>
+                <th>Compared to women your age</th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody>
+              {domains.map((d) => {
+                const domain = config.domains.find((x) => x.id === d.id);
+                const display =
+                  d.value == null || d.value === "" || !domain
+                    ? null
+                    : domain.inputType === "bp-readings"
+                      ? `${d.value} mmHg`
+                      : domain.inputType === "who5"
+                        ? `${d.value} / 25`
+                        : `${d.value} ${domain.unit !== "ratio" ? domain.unit : ""}`.trim();
+                return (
+                  <tr key={d.id}>
+                    <td className="rt-domain">
+                      <b>
+                        {d.numeral} — {d.name}
+                      </b>
+                      {d.metric ? <span>{d.metric}</span> : null}
+                    </td>
+                    <td className="rt-value">
+                      {display ? <b>{display}</b> : null}
+                      {domain?.inputType !== "who5" && d.bandLabel && d.bandLabel !== d.comparison ? (
+                        <span>{d.bandLabel}</span>
+                      ) : null}
+                    </td>
+                    <td className="rt-comparison">
+                      {d.comparison}
+                      {d.percentile ? (
+                        <span className="rt-standing">
+                          ≈ {ordinal(d.percentile.pct)} percentile · {d.percentile.peerLabel}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="rt-pts">
+                      {d.points} / {d.max}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : null}
         {extras.length ? (
           <div className="report-extras">
             <h4>Also captured — on record, not scored</h4>

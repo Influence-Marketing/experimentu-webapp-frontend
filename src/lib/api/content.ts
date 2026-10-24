@@ -4,18 +4,30 @@ import { leadFormConfig } from "@/lib/lead-form-config";
 import { scoringConfig } from "@/lib/scoring-config";
 import type { SiteContent } from "@/lib/types";
 import { buildConfig, mapLeadForm } from "./mappers";
-import { apiConfigured, getForm, getLeadForm, getProtocols, type StatamicForm } from "./statamic";
+import {
+  apiConfigured,
+  getForm,
+  getLeadForm,
+  getProtocols,
+  getScoringConfig,
+  type StatamicForm,
+} from "./statamic";
 
 export const staticContent: SiteContent = {
   config: scoringConfig,
   leadForm: leadFormConfig,
   source: "static",
+  scoring: null,
 };
 
 export async function getSiteContent(): Promise<SiteContent> {
   if (!apiConfigured()) return staticContent;
 
-  const [leadForm, protocols] = await Promise.allSettled([getLeadForm(), getProtocols()]);
+  const [leadForm, protocols, scoring] = await Promise.allSettled([
+    getLeadForm(),
+    getProtocols(),
+    getScoringConfig(),
+  ]);
   const entries = protocols.status === "fulfilled" ? protocols.value : [];
   const handles = entries.flatMap((e) => (e.form_field ? [e.form_field.handle] : []));
   const formResults = await Promise.allSettled(handles.map(getForm));
@@ -24,14 +36,18 @@ export async function getSiteContent(): Promise<SiteContent> {
   formResults.forEach((r, i) => {
     if (r.status === "fulfilled") forms[handles[i]] = r.value;
   });
-  for (const r of [leadForm, protocols, ...formResults]) {
+  for (const r of [leadForm, protocols, scoring, ...formResults]) {
     if (r.status === "rejected") console.warn("[statamic] falling back to static content:", r.reason);
   }
-  if (leadForm.status === "rejected" && protocols.status === "rejected") return staticContent;
+  const apiScoring = scoring.status === "fulfilled" ? scoring.value : null;
+  if (leadForm.status === "rejected" && protocols.status === "rejected") {
+    return { ...staticContent, scoring: apiScoring };
+  }
 
   return {
     config: buildConfig(scoringConfig, entries, forms),
     leadForm: leadForm.status === "fulfilled" ? mapLeadForm(leadForm.value, leadFormConfig) : leadFormConfig,
     source: "cms",
+    scoring: apiScoring,
   };
 }

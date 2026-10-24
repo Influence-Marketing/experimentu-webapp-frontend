@@ -22,11 +22,9 @@ export const leadFormConfig: LeadFormContent = {
   marketingOptIn: {
     text: "I agree to receive emails. I can opt out of receiving any of these communications at any time.",
     required: false,
-    value: "1",
   },
   dataConsent: {
     text: "I agree to the health data collection.",
     required: true,
-    value: "1",
   },
 };

@@ -12,6 +12,7 @@ import type {
   LeadConsentField,
   LeadFormContent,
   LeadTextField,
+  MeasureUnit,
   NumberInput,
   Participant,
   ProtocolFormFields,
@@ -23,6 +24,7 @@ import type {
 import type {
   LeadSubmissionPayload,
   ProtocolSubmissionPayload,
+  ProtocolSubmissionValues,
   StatamicField,
   StatamicForm,
   StatamicProtocolEntry,
@@ -68,10 +70,21 @@ function unit(append: string | undefined, fallback: string) {
 
 const isRequired = (field: StatamicField) => Boolean(field.validate?.includes("required"));
 
-function firstOptionKey(field: StatamicField) {
-  const { options } = field;
-  if (Array.isArray(options)) return options.length ? String(options[0].key) : null;
-  return options ? (Object.keys(options)[0] ?? null) : null;
+// Fields the app fills in rather than the guest (readings average, "sys/dia", waist ÷ height).
+const isDerived = (field: StatamicField) => field.visibility === "computed" || field.visibility === "read_only";
+
+/** Each unit's radio option key: the option keyed or labelled "in"/"cm", else the one in the same position. */
+function unitOptionKeys(field: StatamicField, units: MeasureUnit[]) {
+  const options = Array.isArray(field.options)
+    ? field.options
+    : Object.entries(field.options ?? {}).map(([key, value]) => ({ key, value }));
+  const keys: Partial<Record<MeasureUnit, string>> = {};
+  units.forEach((u, i) => {
+    const option =
+      options.find((o) => [o.key, o.value].some((v) => String(v ?? "").trim().toLowerCase() === u)) ?? options[i];
+    if (option) keys[u] = String(option.key);
+  });
+  return keys;
 }
 
 /** Optional captures are a toggle plus a field shown `if: { <toggle>: "equals true" }`. */
@@ -90,10 +103,8 @@ function applyInput(
   skip: StatamicField[],
 ): { input: Domain["input"]; fields: ProtocolFormFields } {
   const fields = Object.values(form.fields).filter((f) => !skip.includes(f));
-  const numeric = fields.filter(
-    (f) => f.type === "text" && f.input_type === "number" && f.visibility !== "computed",
-  );
-  const computed = fields.find((f) => f.visibility === "computed");
+  const numeric = fields.filter((f) => f.type === "text" && f.input_type === "number" && !isDerived(f));
+  const computed = fields.find(isDerived);
   const unchanged = { input: domain.input, fields: domain.form.fields };
 
   switch (domain.inputType) {
@@ -129,7 +140,8 @@ function applyInput(
       const spec = domain.input as WaistHeightInput;
       const waist = numeric.find((f) => f.handle.includes("waist"));
       const height = numeric.find((f) => f !== waist && f.handle.includes("height"));
-      const units = fields.find((f) => f.type === "toggle");
+      // A radio with one option per unit, or on older forms a toggle (true = cm).
+      const units = fields.find((f) => f.type === "radio" || f.type === "toggle");
       const readout = fields.find((f) => f.type === "text" && !f.input_type) ?? computed;
       const known = domain.form.fields;
       return {
@@ -147,6 +159,11 @@ function applyInput(
         },
         fields: {
           units: units?.handle ?? known.units,
+          unitOptions: units
+            ? units.type === "radio"
+              ? unitOptionKeys(units, spec.units)
+              : undefined
+            : known.unitOptions,
           waist: waist?.handle ?? known.waist,
           height: height?.handle ?? known.height,
           derived: readout?.handle ?? known.derived,
@@ -280,7 +297,10 @@ export function toProtocolPayload(
     put(row.systolic, reading?.systolic);
     put(row.diastolic, reading?.diastolic);
   });
-  if (f.units) put(f.units, (inputs.unit ?? (domain.input as WaistHeightInput).defaultUnit) === "cm");
+  if (f.units) {
+    const unit = inputs.unit ?? (domain.input as WaistHeightInput).defaultUnit;
+    put(f.units, f.unitOptions ? f.unitOptions[unit] : unit === "cm");
+  }
   put(f.waist, inputs.waist);
   put(f.height, inputs.height);
   f.answers?.forEach((handle, i) => put(handle, inputs.answers?.[i]));
@@ -289,6 +309,41 @@ export function toProtocolPayload(
   if (f.upgradeToggle) put(f.upgradeToggle, upgradeValue != null);
   put(f.upgrade, upgradeValue);
   return out;
+}
+
+/** A protocol's saved submission (keyed by its form handles) as screen inputs: toProtocolPayload in reverse. */
+export function fromProtocolValues(
+  domain: Domain,
+  values: ProtocolSubmissionValues,
+): { inputs: DomainInputState; upgradeValue: number | null } {
+  const f = domain.form.fields;
+  const num = (handle: string | undefined) => {
+    const v = handle ? values[handle] : null;
+    if (v == null || v === "" || typeof v === "boolean") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const on = (handle: string) => [true, 1, "1", "true"].includes(values[handle] as string | number | boolean);
+
+  const inputs: DomainInputState = {};
+  if (f.readings) inputs.readings = f.readings.map(num);
+  if (f.value) inputs.value = num(f.value);
+  if (f.bp) inputs.readings = f.bp.map((row) => ({ systolic: num(row.systolic), diastolic: num(row.diastolic) }));
+  if (f.units && values[f.units] != null) {
+    const saved = values[f.units];
+    const unit = f.unitOptions
+      ? (Object.keys(f.unitOptions) as MeasureUnit[]).find((u) => f.unitOptions![u] === saved)
+      : on(f.units)
+        ? "cm"
+        : "in";
+    if (unit) inputs.unit = unit;
+  }
+  if (f.waist) inputs.waist = num(f.waist);
+  if (f.height) inputs.height = num(f.height);
+  if (f.answers) inputs.answers = f.answers.map(num);
+  // The optional capture only counts when its toggle was on.
+  const upgradeValue = !f.upgradeToggle || on(f.upgradeToggle) ? num(f.upgrade) : null;
+  return { inputs, upgradeValue };
 }
 
 export function buildConfig(
@@ -329,7 +384,6 @@ function consentField(field: StatamicField | undefined, fallback: LeadConsentFie
     // `display` is the CP name ("Data Consent"); the guest-facing sentence lives in instructions
     text: text(field.instructions, fallback.text),
     required: isRequired(field),
-    value: firstOptionKey(field) ?? fallback.value,
   };
 }
 
@@ -352,14 +406,15 @@ export function mapLeadForm(form: StatamicForm, base: LeadFormContent): LeadForm
   };
 }
 
-export function toLeadPayload(p: Participant, lead: LeadFormContent): LeadSubmissionPayload {
+export function toLeadPayload(p: Participant): LeadSubmissionPayload {
   return {
-    session: p.phase === "week8",
+    // The session radio's option keys on the lead_form blueprint.
+    session: p.phase === "week8" ? "Week-8 Retest" : "Baseline",
     first_name: p.firstName.trim(),
     email: p.email.trim(),
     age: p.age,
     one_word: p.fearWord.trim(),
-    promotional_email_agreement: p.marketingOptIn ? [lead.marketingOptIn.value] : [],
-    data_consent: p.dataConsent ? [lead.dataConsent.value] : [],
+    promotional_email_agreement: p.marketingOptIn ? 1 : 0,
+    data_consent: p.dataConsent ? 1 : 0,
   };
 }

@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
-import { LEAD_FORM, submitForm } from "@/lib/api/statamic";
+import { LEAD_FORM, submitForm, type LeadSubmissionPayload } from "@/lib/api/statamic";
 import { intakeComplete } from "@/lib/storage";
+import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 import { FieldLabel } from "./ui/FieldLabel";
@@ -18,6 +19,15 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="field-error">{message}</p> : null;
 }
 
+// A lead submission's key is its JSON payload; read back who it was for.
+function submittedLead(key: string | undefined) {
+  try {
+    return key ? (JSON.parse(key) as Partial<LeadSubmissionPayload>) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function WelcomeForm() {
   const router = useRouter();
   const { config, leadForm } = useContent();
@@ -25,9 +35,11 @@ export function WelcomeForm() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [notice, setNotice] = useState<(SubmissionNotice & { resumable: boolean }) | null>(null);
   const p = flow.participant;
   const ready = intakeComplete(p);
   const firstProtocol = config.domains[0];
+  const target = `/protocol/${firstProtocol.id}`;
 
   const update = (patch: Partial<Participant>) => {
     setParticipant(patch);
@@ -38,25 +50,43 @@ export function WelcomeForm() {
     });
   };
 
-  const begin = async () => {
-    const payload = toLeadPayload(p, leadForm);
+  // `retestConfirmed` resends after the "already submitted" popup, telling the API to go ahead.
+  const begin = async (retestConfirmed = false) => {
+    const payload = toLeadPayload(p);
     const key = JSON.stringify(payload);
-    const target = `/protocol/${firstProtocol.id}`;
-    // Coming back to intake and continuing unchanged shouldn't create a second submission.
-    if (flow.submissions[LEAD_FORM]?.key === key) {
-      router.push(target);
-      return;
-    }
     setSubmitting(true);
     setFormError(null);
     setFieldErrors({});
-    const result = await submitForm(LEAD_FORM, payload);
+    const result = await submitForm(
+      LEAD_FORM,
+      retestConfirmed ? { ...payload, retest_confirmed: true } : payload,
+    );
     setSubmitting(false);
     if (!result.ok) {
+      if (result.alreadySubmitted) {
+        // Continue is only possible when this browser still holds the token from this email's
+        // accepted submission for this session; otherwise retesting is the way back in.
+        const held = flow.authToken ? submittedLead(flow.submissions[LEAD_FORM]?.key) : null;
+        const resumable =
+          held?.email?.toLowerCase() === payload.email.toLowerCase() && held?.session === payload.session;
+        setNotice({ kind: "already-submitted", message: result.message, ...result.alreadySubmitted, resumable });
+        return;
+      }
+      if (result.retestNotOpen) {
+        setNotice({
+          kind: "retest-not-open",
+          message: result.message,
+          submissionDate: null,
+          retestDate: result.retestNotOpen.retestDate,
+          resumable: false,
+        });
+        return;
+      }
       const mapped: FieldErrors = {};
       for (const [handle, message] of Object.entries(result.fieldErrors)) {
         const field = leadFieldByHandle[handle];
-        if (field) mapped[field] = message;
+        // Don't repeat under the field what the banner already says.
+        if (field && message !== result.message) mapped[field] = message;
       }
       setFieldErrors(mapped);
       setFormError(
@@ -64,7 +94,7 @@ export function WelcomeForm() {
       );
       return;
     }
-    markSubmitted(LEAD_FORM, key, result.token);
+    markSubmitted(LEAD_FORM, key, { token: result.token, participantId: result.participantId });
     router.push(target);
   };
 
@@ -183,11 +213,17 @@ export function WelcomeForm() {
           </p>
         ) : null}
         <div className="btn-row">
-          <button type="button" className="primary-btn" disabled={!ready || submitting} onClick={begin}>
+          <button type="button" className="primary-btn" disabled={!ready || submitting} onClick={() => begin()}>
             {submitting ? "Saving…" : `Begin Protocol ${firstProtocol.numeral}`}
           </button>
         </div>
       </div>
+      <SubmissionNoticeDialog
+        notice={notice}
+        onClose={() => setNotice(null)}
+        onRetest={() => begin(true)}
+        onContinue={notice?.resumable ? () => router.push(target) : undefined}
+      />
     </div>
   );
 }
