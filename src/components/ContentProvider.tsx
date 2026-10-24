@@ -9,6 +9,7 @@ const ContentContext = createContext<SiteContent>({
   config: scoringConfig,
   leadForm: leadFormConfig,
   source: "static",
+  scoring: null,
 });
 
 export function ContentProvider({ content, children }: { content: SiteContent; children: React.ReactNode }) {

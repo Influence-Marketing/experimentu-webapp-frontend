@@ -247,6 +247,12 @@ function domainPercentile(
   return null;
 }
 
+/** Percentile for a raw measurement (sit-to-stand reps, WHO-5 raw) scored elsewhere, e.g. by the API. */
+export function measurementPercentile(config: ScoringConfig, domainId: string, value: number, age: number) {
+  const spec = (config.percentiles.domains as Record<string, { resultKey?: string } | undefined>)[domainId];
+  return domainPercentile(config, domainId, { [spec?.resultKey ?? "value"]: value }, age);
+}
+
 export function upgradePercentile(
   config: ScoringConfig,
   key: string,
@@ -326,11 +332,9 @@ export function computeResult(
   return { total, quintile, domains, flags };
 }
 
-export function weakestDomains(result: ScoreResult, count = 2) {
-  return [...result.domains]
-    .filter((d) => Number.isFinite(d.points))
-    .sort((a, b) => a.points - b.points)
-    .slice(0, count);
+/** Whether a domain was scored: one not submitted yet has 0 points and no band (a real 0 keeps its band). */
+export function hasResult(d: DomainScore) {
+  return d.points > 0 || Boolean(d.bandLabel);
 }
 
 function nextBandMove(domain: Domain, scored: DomainScore) {

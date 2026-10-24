@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toProtocolPayload } from "@/lib/api/mappers";
-import { LEAD_FORM, submitForm } from "@/lib/api/statamic";
+import { fromProtocolValues, toProtocolPayload } from "@/lib/api/mappers";
+import { getFormSubmission, LEAD_FORM, submitForm } from "@/lib/api/statamic";
 import { scoreDomain } from "@/lib/scoring";
 import { intakeComplete } from "@/lib/storage";
 import type { DomainId } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 import { DomainFields } from "./DomainInputs";
+import { LoadingOverlay } from "./LoadingOverlay";
+import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
 import { NumberField } from "./ui/NumberField";
 
 export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
   const router = useRouter();
   const { config } = useContent();
-  const { flow, setDomainInputs, setUpgrade, markSubmitted, completeProtocols, ready } = useFlow();
+  const { flow, setDomainInputs, setUpgrade, markSubmitted, clearAuthToken, ready } = useFlow();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<{ message: string; details: string[] } | null>(null);
+  const [notice, setNotice] = useState<SubmissionNotice | null>(null);
   const index = config.domains.findIndex((d) => d.id === domainId);
   const domain = config.domains[index];
   const n = index + 1;
@@ -36,6 +38,31 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
     if (ready && !allowed) router.replace("/");
   }, [ready, allowed, router]);
 
+  // Prefill with what this token already submitted to this protocol in its session, unless the
+  // guest starts editing before the answer arrives.
+  const edited = useRef(false);
+  const [prefilling, setPrefilling] = useState(false);
+  useEffect(() => {
+    if (!ready || !allowed || !flow.authToken) return;
+    edited.current = false;
+    let cancelled = false;
+    setPrefilling(true);
+    getFormSubmission(domain.form.handle, flow.authToken).then((values) => {
+      if (cancelled) return;
+      setPrefilling(false);
+      if (!values || edited.current) return;
+      const saved = fromProtocolValues(domain, values);
+      setDomainInputs(domain.id, saved.inputs);
+      if (domain.upgrade) {
+        setUpgrade(domain.upgrade.key, saved.upgradeValue);
+        if (saved.upgradeValue != null) setUpgradeOpen(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, allowed, flow.authToken, domain, setDomainInputs, setUpgrade]);
+
   if (!ready || !allowed) return null;
 
   const goBack = () => {
@@ -45,29 +72,31 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
 
   const goNext = async () => {
     const payload = toProtocolPayload(domain, inputs, upgradeValue, flow.participant);
-    const key = JSON.stringify(payload);
-    // Unchanged answers (e.g. after Back) were already saved; don't create a duplicate submission.
-    if (flow.submissions[domain.form.handle]?.key !== key) {
-      setSubmitting(true);
-      setSubmitError(null);
-      const result = await submitForm(domain.form.handle, payload, flow.authToken);
-      setSubmitting(false);
-      if (!result.ok) {
-        setSubmitError({ message: result.message, details: Object.values(result.fieldErrors) });
-        return;
-      }
-      markSubmitted(domain.form.handle, key);
-    }
-    if (n === total) {
-      completeProtocols();
-      router.push("/score");
+    setSubmitting(true);
+    setNotice(null);
+    const result = await submitForm(domain.form.handle, payload, flow.authToken);
+    setSubmitting(false);
+    if (!result.ok) {
+      if (result.unauthorized) clearAuthToken();
+      // The API's validation messages go in the popup; anything else shows its own message there.
+      const details = [...new Set(Object.values(result.fieldErrors))];
+      setNotice({
+        kind: details.length ? "invalid" : "failed",
+        message: details.length ? "Fix the answers below, then save again." : result.message,
+        details,
+        submissionDate: null,
+        retestDate: null,
+      });
       return;
     }
-    router.push(`/protocol/${config.domains[n].id}`);
+    markSubmitted(domain.form.handle, JSON.stringify(payload));
+    // The score page scores the session from its submissions.
+    router.push(n === total ? "/score" : `/protocol/${config.domains[n].id}`);
   };
 
   return (
     <div style={{ "--domain-color": `var(--${domain.color}-deep)` }}>
+      <LoadingOverlay show={prefilling} label="Loading your saved answers" />
       <div className="progress-rail rise" style={{ "--i": 0 }}>
         {config.domains.map((d, i) => (
           <span key={d.id} className={`seg${i + 1 < n ? " done" : i + 1 === n ? " current" : ""}`} />
@@ -97,7 +126,10 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
         <DomainFields
           domain={domain}
           inputs={inputs}
-          onInputs={(next) => setDomainInputs(domain.id, next)}
+          onInputs={(next) => {
+            edited.current = true;
+            setDomainInputs(domain.id, next);
+          }}
           participant={flow.participant}
         />
       </div>
@@ -112,7 +144,10 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
               <label className="field-label">{domain.upgrade.label}</label>
               <NumberField
                 value={upgradeValue}
-                onChange={(v) => setUpgrade(domain.upgrade!.key, v)}
+                onChange={(v) => {
+                  edited.current = true;
+                  setUpgrade(domain.upgrade!.key, v);
+                }}
                 min={domain.upgrade.min}
                 max={domain.upgrade.max}
                 unit={domain.upgrade.unit}
@@ -123,18 +158,7 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
           ) : null}
         </div>
       ) : null}
-      {submitError ? (
-        <div className="form-error" role="alert">
-          {submitError.message}
-          {submitError.details.length ? (
-            <ul>
-              {submitError.details.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
+      <SubmissionNoticeDialog notice={notice} onClose={() => setNotice(null)} />
       <div className="btn-row rise" style={{ "--i": 5 }}>
         <button type="button" className="back-link" onClick={goBack}>
           Back

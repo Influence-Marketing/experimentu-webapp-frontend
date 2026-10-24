@@ -194,6 +194,7 @@ const domains: Domain[] = [
       handle: "protocol_iii_metabolism",
       fields: {
         units: "units",
+        unitOptions: { in: "Inches", cm: "Centimetres" },
         waist: "waist_at_navel",
         height: "height",
         derived: "waist_height",

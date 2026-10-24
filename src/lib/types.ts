@@ -1,3 +1,5 @@
+import type { ApiScoringConfig } from "./api/statamic";
+
 export type Phase = "baseline" | "week8";
 export type DomainId =
   | "nervous"
@@ -154,6 +156,8 @@ export type ProtocolFormFields = {
   bp?: Array<{ systolic: string; diastolic: string }>;
   value?: string;
   units?: string;
+  /** The radio option key sent for each unit; without it `units` is a toggle (true = cm). */
+  unitOptions?: Partial<Record<MeasureUnit, string>>;
   waist?: string;
   height?: string;
   /** Derived readout: the readings average, BP "sys/dia", or waist ÷ height. */
@@ -236,6 +240,11 @@ export type ScoreResult = {
   quintile: Quintile;
   domains: DomainScore[];
   flags: Flag[];
+  // Set when the result came from the scoring API: the cohort tiers it was scored against, its
+  // path to the next cohort and its levers, all from the backend's config rather than the static one.
+  cohorts?: Quintile[];
+  path?: PathPlan;
+  leverIds?: DomainId[];
 };
 
 export type PathMove = {
@@ -289,6 +298,10 @@ export type Entry = {
   result: ScoreResult;
   baselineId: string | null;
   baselineTotal: number | null;
+  /** Participant id from the lead submission, for GET api/participants/{id}/score. */
+  participantId?: number | null;
+  /** "api" once `result` has been replaced by the scoring API's; "local" until then. */
+  scoreSource?: "api" | "local";
 };
 
 export type FlowState = {
@@ -300,6 +313,10 @@ export type FlowState = {
   submissions: Record<string, { key: string; submittedAt: string }>;
   /** Bearer token from the lead submission, sent with each protocol submission. */
   authToken: string | null;
+  /** Participant id from the lead submission. */
+  participantId: number | null;
+  /** The last step page (protocol, score or report) visited this session, reopened on return. */
+  resumePath: string | null;
 };
 
 export type ScoringConfig = {
@@ -365,8 +382,6 @@ export type LeadTextField = LabelText & {
 export type LeadConsentField = {
   text: string;
   required: boolean;
-  /** Value sent inside the checkboxes array when ticked. */
-  value: string;
 };
 
 export type LeadFormContent = {
@@ -383,4 +398,6 @@ export type SiteContent = {
   config: ScoringConfig;
   leadForm: LeadFormContent;
   source: "cms" | "static";
+  /** The backend's scoring config, needed to show its scores; null when it couldn't be fetched. */
+  scoring: ApiScoringConfig | null;
 };

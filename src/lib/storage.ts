@@ -20,6 +20,8 @@ export const emptyFlow = (): FlowState => ({
   currentEntryId: null,
   submissions: {},
   authToken: null,
+  participantId: null,
+  resumePath: null,
 });
 
 function readJson<T>(key: string, fallback: T): T {
