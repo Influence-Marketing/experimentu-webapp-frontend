@@ -9,6 +9,9 @@ type Props = {
   unit?: string;
   placeholder?: string;
   ariaLabel?: string;
+  id?: string;
+  /** Shown under the field when the value is outside min–max. Defaults to a generic range message. */
+  rangeMessage?: string;
 };
 
 export function NumberField({
@@ -20,21 +23,29 @@ export function NumberField({
   unit,
   placeholder,
   ariaLabel,
+  id,
+  rangeMessage,
 }: Props) {
   const current = Number.isFinite(value) ? value : null;
+  const outOfRange = current !== null && (current < min || current > max);
+  const errorId = id ? `${id}-error` : undefined;
   const nudge = (dir: number) => {
     const base = current ?? (placeholder ? Number(placeholder) : min);
     onChange(Math.min(max, Math.max(min, base + dir * step)));
   };
   return (
+    <div className={`num-field-wrap${outOfRange ? " invalid" : ""}`}>
     <div className="num-field">
       <button type="button" className="num-step" aria-label="Decrease" onClick={() => nudge(-1)}>
         −
       </button>
       <input
+        id={id}
         type="number"
         inputMode="decimal"
         aria-label={ariaLabel}
+        aria-invalid={outOfRange || undefined}
+        aria-describedby={outOfRange ? errorId : undefined}
         min={min}
         max={max}
         step={step}
@@ -50,6 +61,12 @@ export function NumberField({
       <button type="button" className="num-step" aria-label="Increase" onClick={() => nudge(1)}>
         +
       </button>
+    </div>
+    {outOfRange ? (
+      <p className="field-error" id={errorId} role="alert">
+        {rangeMessage ?? `Enter a value between ${min} and ${max}${unit ? ` ${unit}` : ""}.`}
+      </p>
+    ) : null}
     </div>
   );
 }

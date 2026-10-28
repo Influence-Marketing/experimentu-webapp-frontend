@@ -315,6 +315,8 @@ export type FlowState = {
   authToken: string | null;
   /** Participant id from the lead submission. */
   participantId: number | null;
+  /** The signed retest link's token, held from /retest until the Week-8 lead is accepted. */
+  retestToken: string | null;
   /** The last step page (protocol, score or report) visited this session, reopened on return. */
   resumePath: string | null;
 };

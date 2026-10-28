@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fromProtocolValues, toProtocolPayload } from "@/lib/api/mappers";
 import { getFormSubmission, LEAD_FORM, submitForm } from "@/lib/api/statamic";
+import { rangeIssues } from "@/lib/ranges";
 import { scoreDomain } from "@/lib/scoring";
 import { intakeComplete } from "@/lib/storage";
 import type { DomainId } from "@/lib/types";
@@ -27,9 +28,10 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
   const total = config.domains.length;
   const inputs = flow.inputs[domain.id] || {};
   const upgradeValue = domain.upgrade ? (flow.upgrades[domain.upgrade.key] ?? null) : null;
+  const issues = useMemo(() => rangeIssues(domain, inputs, upgradeValue), [domain, inputs, upgradeValue]);
   const canContinue = useMemo(
-    () => scoreDomain(domain, inputs, flow.participant) != null,
-    [domain, inputs, flow.participant],
+    () => scoreDomain(domain, inputs, flow.participant) != null && issues.length === 0,
+    [domain, inputs, flow.participant, issues],
   );
 
   const allowed = intakeComplete(flow.participant) && flow.submissions[LEAD_FORM] != null;
@@ -159,6 +161,11 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
         </div>
       ) : null}
       <SubmissionNoticeDialog notice={notice} onClose={() => setNotice(null)} />
+      {issues.length ? (
+        <p className="form-error" role="alert">
+          {issues[0].message}
+        </p>
+      ) : null}
       <div className="btn-row rise" style={{ "--i": 5 }}>
         <button type="button" className="back-link" onClick={goBack}>
           Back

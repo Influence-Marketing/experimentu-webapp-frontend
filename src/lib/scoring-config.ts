@@ -160,10 +160,10 @@ const domains: Domain[] = [
     input: {
       waistKey: "waist",
       heightKey: "height",
-      units: ["in", "cm"],
+      units: ["cm", "in"],
       unitsLabel: "Units",
-      unitLabels: ["Inches", "Centimetres"],
-      defaultUnit: "in",
+      unitLabels: ["Centimetres", "Inches"],
+      defaultUnit: "cm",
       waist: {
         label: "Waist at navel",
         in: { min: 18, max: 80, placeholder: "31" },

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ContentProvider } from "@/components/ContentProvider";
 import { FlowProvider } from "@/components/FlowProvider";
+import { KioskMode } from "@/components/KioskMode";
 import { getSiteContent } from "@/lib/api/content";
 import "./globals.css";
 
@@ -24,7 +25,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <ContentProvider content={content}>
-          <FlowProvider>{children}</FlowProvider>
+          <FlowProvider>
+            <KioskMode />
+            {children}
+          </FlowProvider>
         </ContentProvider>
       </body>
     </html>

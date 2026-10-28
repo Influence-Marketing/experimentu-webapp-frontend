@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
+import { captureAttribution } from "@/lib/attribution";
+import { isKiosk } from "@/lib/kiosk";
 import { LEAD_FORM, submitForm, type LeadSubmissionPayload } from "@/lib/api/statamic";
 import { intakeComplete } from "@/lib/storage";
 import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
@@ -38,6 +40,13 @@ export function WelcomeForm() {
   const [notice, setNotice] = useState<(SubmissionNotice & { resumable: boolean }) | null>(null);
   const p = flow.participant;
   const ready = intakeComplete(p);
+  const kiosk = isKiosk();
+  const viaRetestLink = flow.retestToken != null;
+
+  // Keep the arrival URL's UTM / referrer / event from the first visit, before any navigation drops them.
+  useEffect(() => {
+    captureAttribution();
+  }, []);
   const firstProtocol = config.domains[0];
   const target = `/protocol/${firstProtocol.id}`;
 
@@ -52,7 +61,11 @@ export function WelcomeForm() {
 
   // `retestConfirmed` resends after the "already submitted" popup, telling the API to go ahead.
   const begin = async (retestConfirmed = false) => {
-    const payload = toLeadPayload(p);
+    // First-touch UTM / referrer / event ride along, as does the retest link's token.
+    const payload = toLeadPayload(p, {
+      ...captureAttribution(),
+      ...(flow.retestToken ? { retest_token: flow.retestToken } : {}),
+    });
     const key = JSON.stringify(payload);
     setSubmitting(true);
     setFormError(null);
@@ -70,6 +83,10 @@ export function WelcomeForm() {
         const resumable =
           held?.email?.toLowerCase() === payload.email.toLowerCase() && held?.session === payload.session;
         setNotice({ kind: "already-submitted", message: result.message, ...result.alreadySubmitted, resumable });
+        return;
+      }
+      if (result.retestRequired) {
+        setFormError(result.message);
         return;
       }
       if (result.retestNotOpen) {
@@ -124,21 +141,32 @@ export function WelcomeForm() {
       </div>
       <div className="rise" style={{ "--i": 4 }}>
         <div className="field-block phase-select">
-          <label className="field-label">{leadForm.session.label}</label>
+          <span className="field-label" id="lead-session-label">
+            {leadForm.session.label}
+          </span>
           <SegToggle
             options={["baseline", "week8"] as Phase[]}
             labels={[leadForm.session.baselineLabel, leadForm.session.week8Label]}
-            value={p.phase}
+            value={viaRetestLink ? "week8" : p.phase}
             onChange={(phase) => update({ phase })}
+            disabled={viaRetestLink}
+            ariaLabel={leadForm.session.label}
           />
+          {viaRetestLink ? (
+            <p className="field-hint">Your Week-8 retest is open from your personal link. Enter the email you used for your baseline.</p>
+          ) : p.phase === "week8" ? (
+            <p className="field-hint">The Week-8 retest opens from the link in your report email. Typing an email alone will not open it.</p>
+          ) : null}
           <FieldError message={fieldErrors.phase} />
         </div>
         <div className="field-block">
-          <FieldLabel label={leadForm.firstName.label} opt={leadForm.firstName.opt} />
+          <FieldLabel label={leadForm.firstName.label} opt={leadForm.firstName.opt} htmlFor="lead-first-name" />
           <input
+            id="lead-first-name"
             className="text-input"
             type="text"
-            autoComplete="given-name"
+            autoComplete={kiosk ? "off" : "given-name"}
+            aria-invalid={Boolean(fieldErrors.firstName) || undefined}
             placeholder={leadForm.firstName.placeholder}
             maxLength={leadForm.firstName.maxLength}
             value={p.firstName}
@@ -147,12 +175,14 @@ export function WelcomeForm() {
           <FieldError message={fieldErrors.firstName} />
         </div>
         <div className="field-block">
-          <FieldLabel label={leadForm.email.label} opt={leadForm.email.opt} />
+          <FieldLabel label={leadForm.email.label} opt={leadForm.email.opt} htmlFor="lead-email" />
           <input
+            id="lead-email"
             className="text-input"
             type="email"
             inputMode="email"
-            autoComplete="email"
+            aria-invalid={Boolean(fieldErrors.email) || undefined}
+            autoComplete={kiosk ? "off" : "email"}
             placeholder={leadForm.email.placeholder}
             maxLength={leadForm.email.maxLength}
             value={p.email}
@@ -161,8 +191,9 @@ export function WelcomeForm() {
           <FieldError message={fieldErrors.email} />
         </div>
         <div className="field-block">
-          <FieldLabel label={leadForm.age.label} opt={leadForm.age.opt} />
+          <FieldLabel label={leadForm.age.label} opt={leadForm.age.opt} htmlFor="lead-age" />
           <NumberField
+            id="lead-age"
             value={p.age}
             onChange={(age) => update({ age })}
             min={18}
@@ -174,10 +205,13 @@ export function WelcomeForm() {
           <FieldError message={fieldErrors.age} />
         </div>
         <div className="field-block">
-          <FieldLabel label={leadForm.fearWord.label} opt={leadForm.fearWord.opt} />
+          <FieldLabel label={leadForm.fearWord.label} opt={leadForm.fearWord.opt} htmlFor="lead-fear-word" />
           <input
+            id="lead-fear-word"
             className="text-input"
             type="text"
+            autoComplete="off"
+            aria-invalid={Boolean(fieldErrors.fearWord) || undefined}
             placeholder={leadForm.fearWord.placeholder}
             maxLength={leadForm.fearWord.maxLength}
             value={p.fearWord}
