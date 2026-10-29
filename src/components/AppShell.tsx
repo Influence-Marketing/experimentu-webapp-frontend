@@ -12,16 +12,8 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const { flow, reset } = useFlow();
   const protocolIndex = config.domains.findIndex((_, i) => pathname === `/protocol/${i + 1}`);
   const isProtocol = protocolIndex >= 0;
-  const isAdmin = pathname.startsWith("/admin");
 
   const meta = (() => {
-    if (isAdmin) {
-      return (
-        <>
-          Roster · <b>Local device</b>
-        </>
-      );
-    }
     if (pathname === "/") {
       return (
         <>
@@ -106,22 +98,8 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <span className="header-meta">{meta}</span>
         )}
       </header>
-      <main className={`app-main${wide || isAdmin ? " wide" : ""}`}>{children}</main>
+      <main className={`app-main${wide ? " wide" : ""}`}>{children}</main>
       <footer className="app-footer no-print">
-        {!isAdmin ? (
-          <Link href="/admin">Admin roster</Link>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              reset();
-              router.push("/");
-            }}
-          >
-            Back to intake
-          </button>
-        )}
-        <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
         <Link href="/privacy#honesty">Honesty &amp; privacy</Link>
         <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
         <span>

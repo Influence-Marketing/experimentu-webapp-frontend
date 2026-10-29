@@ -84,6 +84,21 @@ export type ApiFearWallWord = { word: string; weight: number };
 /** GET api/fear-wall?event=: approved words only, never a name. */
 export type ApiFearWall = { event: string | null; count: number; words: ApiFearWallWord[]; generated_at: string };
 
+/**
+ * GET api/participants/{id}/report/{phase}: the sealed report PDF, itself encrypted with `password`
+ * (first 4 letters of the first name in capitals + age). Older builds send `phase`, newer `session`.
+ */
+export type ApiSealedReport = {
+  participant_id: number;
+  session?: "baseline" | "week8";
+  phase?: "baseline" | "week8";
+  filename: string;
+  password: string;
+  password_hint: string;
+  content_type: string;
+  pdf_base64: string;
+};
+
 export type ApiDomainKey = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
 
 export type ApiMaxBand = { max: number | null; points: number; band: string };
@@ -227,6 +242,7 @@ export const endpoints = {
   formSubmission: (handle: string) => `api/form/${encodeURIComponent(handle)}/submission`,
   scoringConfig: "api/scoring-config",
   participantScore: (id: number) => `api/participants/${id}/score`,
+  participantReport: (id: number, phase: "baseline" | "week8") => `api/participants/${id}/report/${phase}`,
   retestLink: (token: string) => `api/retest/${encodeURIComponent(token)}`,
   fearWall: (event: string) => `api/fear-wall${event ? `?event=${encodeURIComponent(event)}` : ""}`,
 };
@@ -277,6 +293,32 @@ export async function getParticipantScore(participantId: number, token: string):
     return res.ok ? ((await res.json()) as ApiParticipantScore) : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * GET api/participants/{id}/report/{phase} from the browser with the lead token. The API's own
+ * message when there's no report or the token doesn't fit (401/403/404), a generic one otherwise.
+ */
+export async function getSealedReport(
+  participantId: number,
+  phase: "baseline" | "week8",
+  token: string,
+): Promise<{ ok: true; report: ApiSealedReport } | { ok: false; message: string }> {
+  if (!apiConfigured()) return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
+  try {
+    const res = await fetch(apiUrl(endpoints.participantReport(participantId, phase)), {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      // The PDF comes inline as base64, so this answer is larger and slower than the others.
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = (await res.json().catch(() => null)) as (ApiSealedReport & { message?: string }) | null;
+    if (res.ok && body?.pdf_base64 && body.password) return { ok: true, report: body };
+    if ([401, 403, 404].includes(res.status) && body?.message) return { ok: false, message: body.message };
+    return { ok: false, message: "We couldn't open your sealed report. Please try again in a moment." };
+  } catch {
+    return { ok: false, message: "We couldn't reach the server. Check your connection and try again." };
   }
 }
 

@@ -14,15 +14,16 @@
     "html-to-image": "1.11.13",
     "jspdf": "4.2.1",
     "next": "15.5.9",
+    "pdfjs-dist": "6.4.299",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "typescript": "^5",
-    "@playwright/test": "^1.56.1"
+    "typescript": "^5"
   }
 }

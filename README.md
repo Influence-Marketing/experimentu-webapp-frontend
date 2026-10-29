@@ -24,7 +24,6 @@ The whole site sits behind a private-preview gate (`/gate`); the passphrase is `
 | `/report`, `/report/{id}` | The sealed report sheet for the current or a locally kept entry. |
 | `/retest?token=…` | Entry for the Week-8 retest link from the report email: greets the guest, prefills name and age, locks the session to Week-8 and sends the token with the lead. A Week-8 lead without it is refused by the backend. |
 | `/wall?event=…` | Venue display of approved fear words (`GET /api/fear-wall`), refreshed every 10 s, sized by frequency, never a name. |
-| `/admin` | The prototype roster of entries kept in this browser. The real roster is the backend control panel. |
 
 Add `?kiosk=1` to any URL on a venue device to turn on kiosk mode (`?kiosk=0` turns it off): a floating *New guest* button, browser autofill off on the intake, and after 90 s idle a 15 s warning then a full wipe of the guest's state and local report history (`src/lib/kiosk.ts`, `src/components/KioskMode.tsx`).
 

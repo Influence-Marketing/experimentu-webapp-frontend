@@ -25,8 +25,8 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
     else setMissing(true);
   }, [token]);
 
-  // The guest's own result goes back to the reveal; anything else was opened from the admin roster.
-  const backTo = flow.currentEntryId === token ? "/result" : "/admin";
+  // The guest's own result goes back to the reveal; any other report back to the start.
+  const backTo = flow.currentEntryId === token ? "/result" : "/";
 
   return (
     <AppShell>
