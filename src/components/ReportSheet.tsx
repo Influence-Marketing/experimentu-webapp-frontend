@@ -1,11 +1,26 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { downloadReportPdf } from "@/lib/report-pdf";
 import { hasResult, ordinal, pathPlan, upgradePercentile } from "@/lib/scoring";
 import type { Entry } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 
+/** "U-Score-Maya-2026-10-29.pdf", dated the day the measurements were taken. */
+function pdfFileName(entry: Entry) {
+  const created = new Date(entry.createdAt);
+  const day = [created.getFullYear(), created.getMonth() + 1, created.getDate()]
+    .map((n) => String(n).padStart(2, "0"))
+    .join("-");
+  const name = entry.participant.firstName.trim().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  return `U-Score-${name || "report"}-${day}.pdf`;
+}
+
 export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => void }) {
   const { config } = useContent();
+  const sheet = useRef<HTMLDivElement>(null);
+  const [savingPdf, setSavingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const { result, participant, phase } = entry;
   const path = result.path ?? pathPlan(config, result);
   // Only domains that were scored, and only the parts of a result that have a value.
@@ -34,14 +49,29 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
     year: "numeric",
   });
 
+  const downloadPdf = async () => {
+    if (!sheet.current) return;
+    setSavingPdf(true);
+    setPdfError(null);
+    try {
+      await downloadReportPdf(sheet.current, pdfFileName(entry));
+    } catch {
+      setPdfError("We couldn't create the PDF. Use Print report and choose Save as PDF instead.");
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
   return (
     <div>
-      <div className="report-sheet rise" style={{ "--i": 0 }}>
+      <div ref={sheet} className="report-sheet rise" style={{ "--i": 0 }}>
         <div className="report-masthead">
           <span className="rm-brand">Experiment U™ · Personal Health Report</span>
           <span className="rm-date">{date}</span>
         </div>
-        <div className="report-title">
+        {/* flow-root keeps the subtitle's bottom margin inside this box: the PDF copy fixes each
+            box's height, so a margin collapsing out of it would be lost there. Looks the same. */}
+        <div className="report-title" style={{ display: "flow-root" }}>
           <h1>{participant.firstName ? `${participant.firstName}’s U Score™` : "Your U Score™"}</h1>
           <p className="rt-sub">{subtitle.join(" · ")}</p>
         </div>
@@ -165,7 +195,15 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
         <button type="button" className="ghost-btn" style={{ flex: 1 }} onClick={() => window.print()}>
           Print report
         </button>
+        <button type="button" className="ghost-btn" style={{ flex: 1 }} disabled={savingPdf} onClick={downloadPdf}>
+          {savingPdf ? "Preparing PDF…" : "Download PDF"}
+        </button>
       </div>
+      {pdfError ? (
+        <p className="form-error no-print" role="alert">
+          {pdfError}
+        </p>
+      ) : null}
     </div>
   );
 }

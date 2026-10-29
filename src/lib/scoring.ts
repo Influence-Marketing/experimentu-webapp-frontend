@@ -247,12 +247,6 @@ function domainPercentile(
   return null;
 }
 
-/** Percentile for a raw measurement (sit-to-stand reps, WHO-5 raw) scored elsewhere, e.g. by the API. */
-export function measurementPercentile(config: ScoringConfig, domainId: string, value: number, age: number) {
-  const spec = (config.percentiles.domains as Record<string, { resultKey?: string } | undefined>)[domainId];
-  return domainPercentile(config, domainId, { [spec?.resultKey ?? "value"]: value }, age);
-}
-
 export function upgradePercentile(
   config: ScoringConfig,
   key: string,

@@ -27,7 +27,7 @@ export default function ScorePage() {
 
   // Once per visit: rescore this session from what has been submitted so far, then show the scoring
   // API's result for it, kept on the entry so the report shows the same numbers. This page shows
-  // only the API's score: without it (API, config, token, id or session missing) it says so.
+  // only the API's score: without it (API, token, id or session missing) it says so.
   useEffect(() => {
     if (!ready || started.current) return;
     started.current = true;
@@ -37,7 +37,8 @@ export default function ScorePage() {
       return;
     }
     const participantId = target.participantId;
-    if (!scoring || !flow.authToken || participantId == null) {
+    // The scoring config only feeds the report's next-step moves; the response carries its own scale.
+    if (!flow.authToken || participantId == null) {
       setFailed(true);
       return;
     }

@@ -50,6 +50,8 @@ export type LeadSubmissionPayload = {
   data_consent: 0 | 1;
   /** Resend after a 409 "already submitted" answer to submit anyway. */
   retest_confirmed?: boolean;
+  /** Google reCAPTCHA v2 token from the lead form's robot check. */
+  recaptcha_token?: string;
   /** The signed link from the report email; required for a Week-8 Retest. */
   retest_token?: string;
   utm_source?: string;
@@ -110,11 +112,25 @@ export type ApiScoringConfig = {
 };
 
 export type ApiDomainScore = {
+  numeral?: string | null;
+  name?: string | null;
   points: number;
+  max: number;
   band: string | null;
   value: number | string | null;
-  max: number;
+  description?: string | null;
   percentile: number | null;
+};
+
+export type ApiMembership = {
+  mode: string;
+  eyebrow: string | null;
+  headline: string | null;
+  body: string | null;
+  bullets: string[] | null;
+  button: string | null;
+  url: string | null;
+  price_note: string | null;
 };
 
 /** One session (Baseline or Week-8 Retest) of GET api/participants/{id}/score. */
@@ -125,12 +141,28 @@ export type ApiSessionScore = {
   missing: ApiDomainKey[];
   total: number;
   cohort: string;
+  cohort_detail?: { name: string; range: string | null; tagline: string | null };
+  cohort_scale?: { name: string; min: number; max: number | null; range: string | null; current: boolean }[];
+  result_eyebrow?: string | null;
   domains: Record<ApiDomainKey, ApiDomainScore>;
+  cohort_card?: { eyebrow: string | null; title: string | null; body: string | null };
+  levers: { numeral?: string | null; domain: ApiDomainKey; label: string; points: number; copy: string }[];
+  levers_footer?: string | null;
+  membership?: ApiMembership | null;
+  disclaimer?: string | null;
   flags: { id: string; domain: ApiDomainKey; severity: string; title: string; message: string }[];
-  levers: { domain: ApiDomainKey; label: string; points: number; copy: string }[];
   path_to_next: { cohort: string; points_needed: number } | null;
+  derived: {
+    rhr_bpm?: number;
+    age_band?: string;
+    waist_to_height_ratio?: number;
+    systolic?: number;
+    diastolic?: number;
+    bp_category?: string;
+    who5_raw?: number;
+    who5_percent?: number;
+  };
   config_version: string;
-  derived: { age_band?: string; who5_raw?: number; bp_category?: string };
 };
 
 /** GET api/participants/{id}/score (not wrapped in `data`). */
@@ -145,6 +177,27 @@ export type ApiParticipantScore = {
     baseline_cohort: string | null;
     current_cohort: string | null;
   } | null;
+  copy?: {
+    domains_heading?: string | null;
+    levers_heading?: string | null;
+    report_button?: string | null;
+    not_medical_notice?: string | null;
+  };
+};
+
+/** GET api/retest/{token}: who a Week-8 retest link belongs to. The full email is never sent. */
+export type ApiRetest = {
+  valid: boolean;
+  phase: "week8";
+  participant: { first_name: string; masked_email: string; age: number | null };
+  baseline: {
+    session_id: string | number;
+    completed_at: string | null;
+    total: number | null;
+    cohort: string | null;
+    config_version: string | null;
+  };
+  expires_at: string;
 };
 
 export type SubmitResult =
@@ -161,7 +214,7 @@ export type SubmitResult =
       retestNotOpen?: { retestDate: string };
     };
 
-// `{{base_url}}` from the API list, e.g. http://127.0.0.1:8010/
+// `{{base_url}}` from the API list, e.g. https://experimentu-webapp-backend-vhg0puhq.on-forge.com/
 const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export const LEAD_FORM = "lead_form";
@@ -224,6 +277,28 @@ export async function getParticipantScore(participantId: number, token: string):
     return res.ok ? ((await res.json()) as ApiParticipantScore) : null;
   } catch {
     return null;
+  }
+}
+
+/** GET api/retest/{token} from the browser; the API's own message when the link can't be used. */
+export async function getRetest(
+  token: string,
+): Promise<{ ok: true; retest: ApiRetest } | { ok: false; message: string }> {
+  if (!apiConfigured()) return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
+  try {
+    const res = await fetch(apiUrl(endpoints.retestLink(token)), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as (ApiRetest & { message?: string }) | null;
+    if (res.ok && body?.valid) return { ok: true, retest: body };
+    // 404 (invalid or expired) and 410 (already used) carry a message meant for the guest; any other
+    // failure's message is a server error, which isn't.
+    if ((res.status === 404 || res.status === 410) && body?.message) return { ok: false, message: body.message };
+    return { ok: false, message: "We couldn't check your retest link. Please try again in a moment." };
+  } catch {
+    return { ok: false, message: "We couldn't reach the server. Check your connection and try again." };
   }
 }
 

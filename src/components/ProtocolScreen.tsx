@@ -69,7 +69,7 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
 
   const goBack = () => {
     if (index === 0) router.push("/");
-    else router.push(`/protocol/${config.domains[index - 1].id}`);
+    else router.push(`/protocol/${index}`);
   };
 
   const goNext = async () => {
@@ -93,7 +93,7 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
     }
     markSubmitted(domain.form.handle, JSON.stringify(payload));
     // The score page scores the session from its submissions.
-    router.push(n === total ? "/score" : `/protocol/${config.domains[n].id}`);
+    router.push(n === total ? "/result" : `/protocol/${n + 1}`);
   };
 
   return (
