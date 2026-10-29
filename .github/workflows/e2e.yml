@@ -1,0 +1,98 @@
+name: Guest flow end to end
+
+# Boots the Statamic backend (SQLite, log mailer, sync queue) and the Next.js
+# guest site, then runs the Playwright suite in e2e/ against both.
+# The backend lives in its own repository; BACKEND_REPO_TOKEN (a read-only
+# token for Influence-Marketing/experimentu-webapp-backend) is needed only
+# while that repository is private.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      E2E_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8010/
+    steps:
+      - name: Check out the guest site
+        uses: actions/checkout@v4
+
+      - name: Check out the backend
+        uses: actions/checkout@v4
+        with:
+          repository: Influence-Marketing/experimentu-webapp-backend
+          path: backend
+          token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, intl, pdo_sqlite, gd, zip
+          coverage: none
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Configure and start the backend
+        working-directory: backend
+        run: |
+          cp .env.example .env
+          touch database/database.sqlite
+          php artisan key:generate --force
+          php artisan migrate --force
+          php artisan serve --host=127.0.0.1 --port=8010 > backend.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8010/api/scoring-config > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8010/api/scoring-config | head -c 200
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ${{ github.workspace }}/backend/database/database.sqlite
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: log
+          CORS_ALLOWED_ORIGINS: http://localhost:3000
+          STATAMIC_API_ENABLED: "true"
+          STATAMIC_PRO_ENABLED: "true"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install guest site dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build and start the guest site
+        run: |
+          npm run build
+          npx next start -p 3000 > next.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/gate > /dev/null && break; sleep 1; done
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the guest flow suite
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+            next.log
+            backend/backend.log
+            backend/storage/logs
+          retention-days: 7

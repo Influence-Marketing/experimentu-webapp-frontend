@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Mono, Newsreader, Plus_Jakarta_Sans } from "next/font/google";
 import { ContentProvider } from "@/components/ContentProvider";
 import { FlowProvider } from "@/components/FlowProvider";
+import { KioskMode } from "@/components/KioskMode";
 import { getSiteContent } from "@/lib/api/content";
 import "./globals.css";
 
@@ -32,7 +33,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={`${serif.variable} ${sans.variable} ${mono.variable}`}>
       <body>
         <ContentProvider content={content}>
-          <FlowProvider>{children}</FlowProvider>
+          <FlowProvider>
+            <KioskMode />
+            {children}
+          </FlowProvider>
         </ContentProvider>
       </body>
     </html>

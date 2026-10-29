@@ -249,6 +249,17 @@ function Who5Fields({
     next[index] = value;
     onInputs({ ...inputs, answers: next });
   };
+  const count = spec.scaleMax - spec.scaleMin + 1;
+  // Arrow keys move and select within a statement; Tab moves between statements (roving tabindex).
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>, index: number, n: number) => {
+    const moves: Record<string, number> = { ArrowRight: n + 1, ArrowDown: n + 1, ArrowLeft: n - 1, ArrowUp: n - 1, Home: 0, End: count - 1 };
+    const target = moves[e.key];
+    if (target === undefined) return;
+    e.preventDefault();
+    const clamped = Math.min(count - 1, Math.max(0, target));
+    setAnswer(index, clamped);
+    (e.currentTarget.parentElement?.children[clamped] as HTMLElement | undefined)?.focus();
+  };
   return (
     <>
       {spec.statements.map((statement, i) => (
@@ -258,14 +269,17 @@ function Who5Fields({
             {statement}
           </p>
           <div className="scale-dots" role="radiogroup" aria-label={statement}>
-            {Array.from({ length: spec.scaleMax - spec.scaleMin + 1 }).map((_, n) => (
+            {Array.from({ length: count }).map((_, n) => (
               <button
                 key={n}
                 type="button"
                 role="radio"
                 aria-checked={answers[i] === n}
+                aria-label={`${n} — ${spec.scaleLabels[n] ?? n}`}
+                tabIndex={answers[i] === n || (!Number.isFinite(answers[i]) && n === 0) ? 0 : -1}
                 className={answers[i] === n ? "selected" : ""}
                 onClick={() => setAnswer(i, n)}
+                onKeyDown={(e) => onKey(e, i, n)}
               >
                 {n}
               </button>

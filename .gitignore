@@ -37,3 +37,9 @@ next-env.d.ts
 
 # local prototype scratch
 _prototype_parse
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

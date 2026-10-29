@@ -21,6 +21,7 @@ export const emptyFlow = (): FlowState => ({
   submissions: {},
   authToken: null,
   participantId: null,
+  retestToken: null,
   resumePath: null,
 });
 
@@ -91,6 +92,16 @@ export function resetFlow() {
   const next = emptyFlow();
   saveFlow(next);
   return next;
+}
+
+/** Kiosk reset: forget the flow and the local report history, so the next guest sees nothing of the last. */
+export function wipeDevice() {
+  try {
+    localStorage.removeItem(FLOW_KEY);
+    localStorage.removeItem(ENTRIES_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function intakeComplete(p: Participant) {

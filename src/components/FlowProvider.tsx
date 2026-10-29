@@ -32,6 +32,8 @@ type FlowContextValue = {
   ) => void;
   /** Forgets a token the server rejected, so the next intake submit fetches a new one. */
   clearAuthToken: () => void;
+  /** Holds the token from a /retest link until the Week-8 lead is accepted. */
+  setRetestToken: (token: string | null) => void;
   completeProtocols: () => Entry;
   currentEntry: Entry | null;
   setCurrentEntryId: (id: string | null) => void;
@@ -122,6 +124,8 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
         submissions: { ...prev.submissions, [formHandle]: { key, submittedAt: new Date().toISOString() } },
         authToken: lead ? lead.token : prev.authToken,
         participantId: lead ? lead.participantId : prev.participantId,
+        // The retest link is single use: the accepted lead consumed it.
+        retestToken: lead ? null : prev.retestToken,
         // A new intake gets its own entry rather than updating the last session's, and starts
         // remembering its steps afresh.
         currentEntryId: lead ? null : prev.currentEntryId,
@@ -133,6 +137,10 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
 
   const clearAuthToken = useCallback(() => {
     setFlow((prev) => ({ ...prev, authToken: null }));
+  }, []);
+
+  const setRetestToken = useCallback((token: string | null) => {
+    setFlow((prev) => ({ ...prev, retestToken: token, participant: token ? { ...prev.participant, phase: "week8" } : prev.participant }));
   }, []);
 
   const completeProtocols = useCallback(() => {
@@ -189,6 +197,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setUpgrade,
       markSubmitted,
       clearAuthToken,
+      setRetestToken,
       completeProtocols,
       currentEntry,
       setCurrentEntryId,
@@ -203,6 +212,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setUpgrade,
       markSubmitted,
       clearAuthToken,
+      setRetestToken,
       completeProtocols,
       currentEntry,
       setCurrentEntryId,

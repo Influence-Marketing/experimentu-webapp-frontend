@@ -52,6 +52,13 @@ export type LeadSubmissionPayload = {
   retest_confirmed?: boolean;
   /** Google reCAPTCHA v2 token from the lead form's robot check. */
   recaptcha_token?: string;
+  /** The signed link from the report email; required for a Week-8 Retest. */
+  retest_token?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  referrer?: string;
+  event_id?: string;
 };
 
 /** Body for POST api/form/protocol_*\/submit, keyed by that protocol form's field handles. */
@@ -62,6 +69,20 @@ export type ProtocolSubmissionValues = Record<string, string | number | boolean 
 
 /** lead_form's answer when this participant already has a submission; dates are YYYY-MM-DD. */
 export type AlreadySubmitted = { submissionDate: string | null; retestDate: string | null };
+
+/** GET api/retest/{token}: who the link belongs to and their baseline (no full email). */
+export type ApiRetestLink = {
+  valid: boolean;
+  phase: "week8";
+  participant: { first_name: string; masked_email: string; age: number };
+  baseline: { session_id: string; completed_at: string | null; total: number | null; cohort: string | null; config_version: string };
+  expires_at: string;
+};
+
+export type ApiFearWallWord = { word: string; weight: number };
+
+/** GET api/fear-wall?event=: approved words only, never a name. */
+export type ApiFearWall = { event: string | null; count: number; words: ApiFearWallWord[]; generated_at: string };
 
 export type ApiDomainKey = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
 
@@ -179,14 +200,6 @@ export type ApiRetest = {
   expires_at: string;
 };
 
-/** GET api/fear-wall: approved anonymous words; `weight` is how many guests gave the word. */
-export type ApiFearWall = {
-  event: string | null;
-  count: number;
-  words: { word: string; weight: number }[];
-  generated_at: string;
-};
-
 export type SubmitResult =
   | { ok: true; token: string | null; participantId: number | null }
   | {
@@ -194,6 +207,8 @@ export type SubmitResult =
       message: string;
       fieldErrors: Record<string, string>;
       unauthorized?: boolean;
+      /** Week-8 Retest without the signed link from the report email. */
+      retestRequired?: boolean;
       alreadySubmitted?: AlreadySubmitted;
       /** Week-8 Retest picked before it opens; carries the opening date (YYYY-MM-DD). */
       retestNotOpen?: { retestDate: string };
@@ -212,8 +227,8 @@ export const endpoints = {
   formSubmission: (handle: string) => `api/form/${encodeURIComponent(handle)}/submission`,
   scoringConfig: "api/scoring-config",
   participantScore: (id: number) => `api/participants/${id}/score`,
-  retest: (token: string) => `api/retest/${encodeURIComponent(token)}`,
-  fearWall: "api/fear-wall",
+  retestLink: (token: string) => `api/retest/${encodeURIComponent(token)}`,
+  fearWall: (event: string) => `api/fear-wall${event ? `?event=${encodeURIComponent(event)}` : ""}`,
 };
 
 export function apiConfigured() {
@@ -271,7 +286,7 @@ export async function getRetest(
 ): Promise<{ ok: true; retest: ApiRetest } | { ok: false; message: string }> {
   if (!apiConfigured()) return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
   try {
-    const res = await fetch(apiUrl(endpoints.retest(token)), {
+    const res = await fetch(apiUrl(endpoints.retestLink(token)), {
       headers: { Accept: "application/json" },
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
@@ -284,21 +299,6 @@ export async function getRetest(
     return { ok: false, message: "We couldn't check your retest link. Please try again in a moment." };
   } catch {
     return { ok: false, message: "We couldn't reach the server. Check your connection and try again." };
-  }
-}
-
-/** GET api/fear-wall from the browser; null when it can't be had. */
-export async function getFearWall(): Promise<ApiFearWall | null> {
-  if (!apiConfigured()) return null;
-  try {
-    const res = await fetch(apiUrl(endpoints.fearWall), {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    });
-    return res.ok ? ((await res.json()) as ApiFearWall) : null;
-  } catch {
-    return null;
   }
 }
 
@@ -317,6 +317,38 @@ export async function getFormSubmission(handle: string, token: string): Promise<
     if (!res.ok) return null;
     const body = (await res.json()) as { submission?: { values?: ProtocolSubmissionValues } | null };
     return body.submission?.values ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET api/retest/{token} from the browser: the guest behind a retest link, or why it will not open. */
+export async function getRetestLink(token: string): Promise<{ ok: true; data: ApiRetestLink } | { ok: false; status: number; message: string }> {
+  if (!apiConfigured()) return { ok: false, status: 0, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
+  try {
+    const res = await fetch(apiUrl(endpoints.retestLink(token)), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as (ApiRetestLink & { message?: string }) | null;
+    if (res.ok && body?.valid) return { ok: true, data: body };
+    return { ok: false, status: res.status, message: body?.message ?? "This retest link is invalid or has expired." };
+  } catch {
+    return { ok: false, status: 0, message: "We couldn't reach the server. Check your connection and try again." };
+  }
+}
+
+/** GET api/fear-wall?event= from the browser; null when it can't be had. */
+export async function getFearWall(event: string): Promise<ApiFearWall | null> {
+  if (!apiConfigured()) return null;
+  try {
+    const res = await fetch(apiUrl(endpoints.fearWall(event)), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok ? ((await res.json()) as ApiFearWall) : null;
   } catch {
     return null;
   }
@@ -356,6 +388,7 @@ export async function submitForm(
         message?: string;
         errors?: Record<string, string[] | string>;
         requires_confirmation?: boolean;
+        requires_retest_token?: boolean;
         submission_date?: string;
         retest_week_8_date?: string;
       }
@@ -370,6 +403,15 @@ export async function submitForm(
         submissionDate: body.submission_date ?? null,
         retestDate: body.retest_week_8_date ?? null,
       },
+    };
+  }
+  // Week-8 Retest without the signed link from the report email.
+  if (res.status === 422 && body?.requires_retest_token) {
+    return {
+      ok: false,
+      message: body.message ?? "Open your Week-8 retest from the link in your report email.",
+      fieldErrors: {},
+      retestRequired: true,
     };
   }
   // Week-8 Retest before it opens: a 422 on `session` that carries the opening date.

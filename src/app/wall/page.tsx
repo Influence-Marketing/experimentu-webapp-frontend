@@ -1,60 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
-import { getFearWall, type ApiFearWall } from "@/lib/api/statamic";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { getFearWall, type ApiFearWallWord } from "@/lib/api/statamic";
 
-// The API caches the wall for 30 seconds, so polling any faster gains nothing.
-const POLL_MS = 30_000;
+const REFRESH_MS = 10_000;
 
-// The event wall: every guest's one-word health fear, anonymous and moderated, sized by how many
-// guests gave the same word. Meant to run unattended on a screen, so it keeps refreshing.
-export default function WallPage() {
-  const [wall, setWall] = useState<ApiFearWall | null>(null);
-  const [failed, setFailed] = useState(false);
+// Deterministic placement so a word stays where it is between refreshes.
+function hash(text: string) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0) / 4294967295;
+}
+
+function FearWall() {
+  const params = useSearchParams();
+  const event = params.get("event") ?? "";
+  const [words, setWords] = useState<ApiFearWallWord[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const seen = useRef(new Set<string>());
 
   useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getFearWall().then((next) => {
-        if (!alive) return;
-        if (next) setWall(next);
-        setFailed(!next);
-      });
-    load();
-    const timer = setInterval(load, POLL_MS);
-    return () => {
-      alive = false;
-      clearInterval(timer);
+    let cancelled = false;
+    const load = async () => {
+      const result = await getFearWall(event);
+      if (cancelled) return;
+      if (!result) {
+        setOffline(true);
+        return;
+      }
+      setOffline(false);
+      // Keep the list bounded so an 8-hour run never grows without limit.
+      setWords(result.words.slice(0, 200));
+      setUpdatedAt(result.generated_at);
     };
-  }, []);
+    load();
+    const timer = window.setInterval(load, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [event]);
 
-  const heaviest = Math.max(1, ...(wall?.words.map((w) => w.weight) ?? []));
+  const maxWeight = Math.max(1, ...words.map((w) => w.weight));
 
   return (
-    <AppShell wide>
-      <div className="wall rise" style={{ "--i": 0 }}>
-        <p className="reveal-kicker">The fear wall · anonymous</p>
-        <h1 className="wall-title">
-          One word from <em>every guest</em>.
-        </h1>
-        {wall?.words.length ? (
-          <ul className="wall-words" aria-label={`${wall.count} words`}>
-            {wall.words.map((w) => (
-              <li key={w.word} style={{ "--w": w.weight / heaviest }} title={`${w.weight} ${w.weight === 1 ? "guest" : "guests"}`}>
-                {w.word}
-              </li>
-            ))}
-          </ul>
-        ) : wall ? (
-          <p className="field-hint">No words on the wall yet.</p>
-        ) : null}
-        {failed ? (
-          <p className="field-hint" role="status">
-            We couldn&apos;t refresh the wall. Trying again every 30 seconds.
-          </p>
-        ) : null}
+    <div className="wall">
+      <header className="wall-head">
+        <span className="wall-brand">Experiment U™</span>
+        <h1>One word for the fear you are experimenting on.</h1>
+        <span className="wall-meta">
+          {offline ? "Reconnecting…" : words.length ? `${words.length} ${words.length === 1 ? "word" : "words"}` : "Waiting for the first word"}
+        </span>
+      </header>
+      <div className="wall-cloud" aria-live="polite">
+        {words.map((w) => {
+          const key = w.word.toLowerCase();
+          const fresh = !seen.current.has(key);
+          seen.current.add(key);
+          const scale = 0.9 + (w.weight / maxWeight) * 2.4;
+          const x = 6 + hash(key) * 82;
+          const y = 8 + hash(key + "y") * 76;
+          return (
+            <span
+              key={key}
+              className={`wall-word${fresh ? " fresh" : ""}`}
+              style={{ "--scale": scale, "--x": `${x}%`, "--y": `${y}%` }}
+              title={`${w.weight} ${w.weight === 1 ? "guest" : "guests"}`}
+            >
+              {w.word}
+            </span>
+          );
+        })}
       </div>
-    </AppShell>
+      <footer className="wall-foot">
+        Words are shared anonymously and shown once approved.
+        {updatedAt ? ` Updated ${new Date(updatedAt).toLocaleTimeString()}.` : ""}
+      </footer>
+    </div>
+  );
+}
+
+export default function WallPage() {
+  return (
+    <Suspense fallback={null}>
+      <FearWall />
+    </Suspense>
   );
 }

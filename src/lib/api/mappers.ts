@@ -73,7 +73,12 @@ const isRequired = (field: StatamicField) => Boolean(field.validate?.includes("r
 // Fields the app fills in rather than the guest (readings average, "sys/dia", waist ÷ height).
 const isDerived = (field: StatamicField) => field.visibility === "computed" || field.visibility === "read_only";
 
-/** Each unit's radio option key: the option keyed or labelled "in"/"cm", else the one in the same position. */
+const UNIT_WORDS: Record<MeasureUnit, string[]> = {
+  in: ["in", "inch", "inches"],
+  cm: ["cm", "centimetre", "centimeter", "centimetres", "centimeters"],
+};
+
+/** Each unit's radio option key: the option keyed or labelled with that unit's word, else the one in the same position. */
 function unitOptionKeys(field: StatamicField, units: MeasureUnit[]) {
   const options = Array.isArray(field.options)
     ? field.options
@@ -81,7 +86,9 @@ function unitOptionKeys(field: StatamicField, units: MeasureUnit[]) {
   const keys: Partial<Record<MeasureUnit, string>> = {};
   units.forEach((u, i) => {
     const option =
-      options.find((o) => [o.key, o.value].some((v) => String(v ?? "").trim().toLowerCase() === u)) ?? options[i];
+      options.find((o) =>
+        [o.key, o.value].some((v) => UNIT_WORDS[u].includes(String(v ?? "").trim().toLowerCase())),
+      ) ?? options[i];
     if (option) keys[u] = String(option.key);
   });
   return keys;
@@ -406,7 +413,11 @@ export function mapLeadForm(form: StatamicForm, base: LeadFormContent): LeadForm
   };
 }
 
-export function toLeadPayload(p: Participant): LeadSubmissionPayload {
+/** The lead payload; `extras` carries the retest token and first-touch attribution when there are any. */
+export function toLeadPayload(p: Participant, extras: Partial<LeadSubmissionPayload> = {}): LeadSubmissionPayload {
+  const present = Object.fromEntries(
+    Object.entries(extras).filter(([, v]) => v !== undefined && v !== null && v !== ""),
+  ) as Partial<LeadSubmissionPayload>;
   return {
     // The session radio's option keys on the lead_form blueprint.
     session: p.phase === "week8" ? "Week-8 Retest" : "Baseline",
@@ -416,5 +427,6 @@ export function toLeadPayload(p: Participant): LeadSubmissionPayload {
     one_word: p.fearWord.trim(),
     promotional_email_agreement: p.marketingOptIn ? 1 : 0,
     data_consent: p.dataConsent ? 1 : 0,
+    ...present,
   };
 }
