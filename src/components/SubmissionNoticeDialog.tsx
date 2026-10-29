@@ -83,14 +83,11 @@ function daysUntil(iso: string | null) {
 export function SubmissionNoticeDialog({
   notice,
   onClose,
-  onRetest,
   onContinue,
 }: {
   notice: SubmissionNotice | null;
   onClose: () => void;
-  /** Resubmits with retest_confirmed; offered only for "already-submitted". */
-  onRetest?: () => void;
-  /** Carries on with the token this browser already holds; offered only for "already-submitted". */
+  /** Retests: resubmits with retest_confirmed and carries on. Offered only for "already-submitted". */
   onContinue?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -110,7 +107,6 @@ export function SubmissionNoticeDialog({
   const submitted = notice ? formatDay(notice.submissionDate) : null;
   const retest = notice ? formatDay(notice.retestDate) : null;
   const daysLeft = notice ? daysUntil(notice.retestDate) : null;
-  const canRetest = notice?.kind === "already-submitted" && onRetest != null;
   const canContinue = notice?.kind === "already-submitted" && onContinue != null;
 
   return (
@@ -159,36 +155,21 @@ export function SubmissionNoticeDialog({
               ) : null}
             </div>
           ) : null}
-          {canRetest || canContinue ? (
+          {canContinue ? (
             <div className="notice-actions">
               <button type="button" className="back-link" onClick={close}>
                 Close
               </button>
-              {canRetest ? (
-                <button
-                  type="button"
-                  // With Continue on offer, carrying on is the main action and retesting the alternative.
-                  className={canContinue ? "ghost-btn" : "primary-btn"}
-                  onClick={() => {
-                    close();
-                    onRetest?.();
-                  }}
-                >
-                  Retest
-                </button>
-              ) : null}
-              {canContinue ? (
-                <button
-                  type="button"
-                  className="primary-btn"
-                  onClick={() => {
-                    close();
-                    onContinue?.();
-                  }}
-                >
-                  Continue
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => {
+                  close();
+                  onContinue?.();
+                }}
+              >
+                Continue
+              </button>
             </div>
           ) : (
             <button type="button" className="primary-btn" onClick={close}>

@@ -1,9 +1,17 @@
 // Maps GET api/participants/{id}/score onto the app's ScoreResult, so the score and report pages
-// show the backend's numbers. Cohort tiers and next-step moves come from the backend's own scoring
-// config (api/scoring-config) so they agree with those numbers; the static config still supplies
-// domain names, colours and the percentile norms.
-import { measurementPercentile } from "@/lib/scoring";
-import type { DomainId, Entry, Flag, PathMove, Quintile, ScoreResult, ScoringConfig } from "@/lib/types";
+// show the backend's numbers and copy. The response's own cohort scale is used when it sends one;
+// next-step moves come from the backend's scoring config (api/scoring-config) so they agree with
+// those numbers. The static config only fills in colours, units and anything the API leaves blank.
+import type {
+  DomainId,
+  Entry,
+  Flag,
+  PathMove,
+  Quintile,
+  ScoreDisplay,
+  ScoreResult,
+  ScoringConfig,
+} from "@/lib/types";
 import type {
   ApiBpCategory,
   ApiDomainKey,
@@ -29,6 +37,24 @@ const SEVERITY: Record<string, Flag["severity"]> = {
   warning: "doctor",
   info: "check",
 };
+
+// The API sends null or "" for copy it has no value for yet.
+const text = (s: string | null | undefined) => (s && s.trim() ? s : null);
+
+/** The response's cohort scale as min–max ranges (an open max runs to the next tier's min). */
+function cohortScale(session: ApiSessionScore, config: ScoringConfig): Quintile[] {
+  const tiers = [...(session.cohort_scale ?? [])].sort((a, b) => a.min - b.min);
+  return tiers.map((tier, i) => {
+    const max = tier.max ?? (i < tiers.length - 1 ? tiers[i + 1].min - 1 : config.totalMax);
+    return {
+      min: tier.min,
+      max,
+      name: tier.name,
+      meaning: tier.current ? (text(session.cohort_detail?.tagline) ?? "") : "",
+      range: text(tier.range) ?? `${tier.min}–${max}`,
+    };
+  });
+}
 
 /** The backend's cohort tiers as min–max ranges, borrowing the static set's meanings by position. */
 export function cohortTiers(scoring: ApiScoringConfig, config: ScoringConfig): Quintile[] {
@@ -121,9 +147,20 @@ function nextMove(key: ApiDomainKey, current: ApiDomainScore, session: ApiSessio
   }
 }
 
-/** One API session as the app's ScoreResult. */
-export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfig, config: ScoringConfig): ScoreResult {
-  const cohorts = cohortTiers(scoring, config);
+/** One API session as the app's ScoreResult; `retest` marks the Week-8 session. */
+export function toScoreResult(
+  session: ApiSessionScore,
+  response: ApiParticipantScore,
+  scoring: ApiScoringConfig | null,
+  config: ScoringConfig,
+  retest: boolean,
+): ScoreResult {
+  const cohorts = session.cohort_scale?.length
+    ? cohortScale(session, config)
+    : scoring
+      ? cohortTiers(scoring, config)
+      : [];
+  const current = session.cohort_scale?.find((tier) => tier.current)?.name ?? session.cohort;
   const idFor = (key: ApiDomainKey) => config.domains.find((d) => API_KEY[d.id] === key);
 
   const flags: Flag[] = session.flags.flatMap((flag) => {
@@ -148,8 +185,8 @@ export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfi
     const value = api?.value ?? undefined;
     return {
       id: domain.id,
-      numeral: domain.numeral,
-      name: domain.name,
+      numeral: text(api?.numeral) ?? domain.numeral,
+      name: text(api?.name) ?? domain.name,
       metric: domain.metric,
       shortMetric: domain.shortMetric,
       color: domain.color,
@@ -158,10 +195,11 @@ export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfi
       points: api?.points ?? 0,
       bandLabel: api?.band ?? undefined,
       comparison: api?.band ?? null,
+      description: text(api?.description),
       flag: flags.find((f) => f.domainId === domain.id)?.flagId ?? null,
       value,
-      // The API doesn't send percentiles yet; work them out from its measurement and the published norms.
-      percentile: typeof value === "number" ? measurementPercentile(config, domain.id, value, session.age) : null,
+      // Only a percentile the API sends; the app no longer works its own out.
+      percentile: typeof api?.percentile === "number" ? { pct: api.percentile, source: "", peerLabel: "" } : null,
     };
   });
 
@@ -180,7 +218,7 @@ export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfi
           const key = API_KEY[domain.id];
           // A protocol not submitted yet has no band to move up from.
           const move =
-            session.domains[key] && !session.missing.includes(key)
+            scoring && session.domains[key] && !session.missing.includes(key)
               ? nextMove(key, session.domains[key], session, scoring)
               : null;
           return move
@@ -199,19 +237,81 @@ export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfi
         .sort((a, b) => b.gain - a.gain)
     : [];
 
+  const membership = session.membership;
+  const display: ScoreDisplay = {
+    firstName: text(response.participant?.first_name),
+    date: text(session.date),
+    age: session.age ?? null,
+    eyebrow: text(session.result_eyebrow),
+    cohortRange: text(session.cohort_detail?.range),
+    cohortTagline: text(session.cohort_detail?.tagline),
+    domainsHeading: text(response.copy?.domains_heading),
+    cohortCard: session.cohort_card
+      ? {
+          eyebrow: text(session.cohort_card.eyebrow),
+          title: text(session.cohort_card.title),
+          body: text(session.cohort_card.body),
+        }
+      : null,
+    levers: session.levers.flatMap((lever) => {
+      const domain = idFor(lever.domain);
+      return domain
+        ? [
+            {
+              domainId: domain.id,
+              numeral: text(lever.numeral) ?? domain.numeral,
+              label: text(lever.label) ?? domain.name,
+              points: lever.points,
+              copy: lever.copy,
+              color: domain.color,
+            },
+          ]
+        : [];
+    }),
+    leversHeading: text(response.copy?.levers_heading),
+    leversFooter: text(session.levers_footer),
+    membership: membership
+      ? {
+          mode: membership.mode,
+          eyebrow: text(membership.eyebrow),
+          headline: text(membership.headline),
+          body: text(membership.body),
+          bullets: (membership.bullets ?? []).filter((b) => text(b)),
+          button: text(membership.button),
+          url: text(membership.url),
+          priceNote: text(membership.price_note),
+        }
+      : null,
+    notMedicalNotice: text(response.copy?.not_medical_notice),
+    disclaimer: text(session.disclaimer),
+    reportButton: text(response.copy?.report_button),
+    delta: retest ? (response.delta_from_baseline?.total ?? null) : null,
+    derived: {
+      rhrBpm: session.derived?.rhr_bpm ?? null,
+      ageBand: text(session.derived?.age_band),
+      waistToHeight: session.derived?.waist_to_height_ratio ?? null,
+      systolic: session.derived?.systolic ?? null,
+      diastolic: session.derived?.diastolic ?? null,
+      bpCategory: text(session.derived?.bp_category),
+      who5Raw: session.derived?.who5_raw ?? null,
+      who5Percent: session.derived?.who5_percent ?? null,
+    },
+  };
+
   return {
     total: session.total,
-    quintile: cohorts.find((c) => c.name === session.cohort) ?? {
+    quintile: cohorts.find((c) => c.name === current) ?? {
       min: 0,
       max: config.totalMax,
       name: session.cohort,
-      meaning: "",
+      meaning: text(session.cohort_detail?.tagline) ?? "",
     },
     domains,
     flags,
     cohorts,
     path: { next, gap, moves },
     leverIds: session.levers.flatMap((l) => idFor(l.domain)?.id ?? []),
+    display,
   };
 }
 
@@ -219,13 +319,14 @@ export function toScoreResult(session: ApiSessionScore, scoring: ApiScoringConfi
 export function apiScorePatch(
   entry: Entry,
   api: ApiParticipantScore,
-  scoring: ApiScoringConfig,
+  scoring: ApiScoringConfig | null,
   config: ScoringConfig,
 ): Partial<Entry> | null {
-  const session = entry.phase === "week8" ? api.week_8_retest : api.baseline;
+  const retest = entry.phase === "week8";
+  const session = retest ? api.week_8_retest : api.baseline;
   if (!session) return null;
   return {
-    result: toScoreResult(session, scoring, config),
+    result: toScoreResult(session, api, scoring, config, retest),
     configVersion: session.config_version,
     baselineTotal: entry.phase === "week8" ? (api.baseline?.total ?? entry.baselineTotal) : entry.baselineTotal,
     scoreSource: "api",

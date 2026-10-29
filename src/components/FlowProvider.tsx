@@ -42,8 +42,14 @@ type FlowContextValue = {
 
 const FlowContext = createContext<FlowContextValue | null>(null);
 
-// Step pages a session can be resumed on; /report/{id} is the admin's view, not a step.
-const isStepPath = (path: string) => path.startsWith("/protocol/") || path === "/score" || path === "/report";
+// Step pages a session can be resumed on. /score and /report are older paths a saved flow may
+// still hold; both now redirect to /result and /report/{token}.
+const isStepPath = (path: string) =>
+  path.startsWith("/protocol/") ||
+  path === "/result" ||
+  path.startsWith("/report/") ||
+  path === "/score" ||
+  path === "/report";
 
 /** A session is in progress from its intake until every protocol has been submitted after it. */
 function inProgress(flow: FlowState, domains: Domain[]) {

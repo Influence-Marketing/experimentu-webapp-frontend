@@ -10,7 +10,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const router = useRouter();
   const { config } = useContent();
   const { flow, reset } = useFlow();
-  const protocolIndex = config.domains.findIndex((d) => pathname === `/protocol/${d.id}`);
+  const protocolIndex = config.domains.findIndex((_, i) => pathname === `/protocol/${i + 1}`);
   const isProtocol = protocolIndex >= 0;
   const isAdmin = pathname.startsWith("/admin");
 
@@ -37,10 +37,31 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         </>
       );
     }
-    if (pathname.startsWith("/score")) {
+    if (pathname === "/result") {
       return (
         <>
           Result · <b>{flow.participant.phase === "week8" ? "Week-8 retest" : "Baseline"}</b>
+        </>
+      );
+    }
+    if (pathname.startsWith("/retest")) {
+      return (
+        <>
+          Week-8 · <b>Retest</b>
+        </>
+      );
+    }
+    if (pathname === "/wall") {
+      return (
+        <>
+          Fear wall · <b>Anonymous</b>
+        </>
+      );
+    }
+    if (pathname === "/privacy") {
+      return (
+        <>
+          Privacy · <b>Honesty</b>
         </>
       );
     }
@@ -100,6 +121,8 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
             Back to intake
           </button>
         )}
+        <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
+        <Link href="/privacy#honesty">Honesty &amp; privacy</Link>
         <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
         <span>
           Scoring config v{config.version} — prototype, not a medical device

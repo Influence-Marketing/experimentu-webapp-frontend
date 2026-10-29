@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "next-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "port": 3000
+    },
+    {
       "name": "statamic-api",
       "runtimeExecutable": "php",
       "runtimeArgs": ["C:/Users/ASUS/experimentu-webapp-backend/artisan", "serve", "--host=127.0.0.1", "--port=8010"],

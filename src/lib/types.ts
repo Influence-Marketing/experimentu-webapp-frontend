@@ -194,6 +194,8 @@ export type Quintile = {
   max: number;
   name: string;
   meaning: string;
+  /** Range label from the scoring API's cohort scale, e.g. "55–69". */
+  range?: string;
 };
 
 export type PercentileResult = {
@@ -215,6 +217,8 @@ export type DomainScore = {
   bandLabel?: string;
   flag?: string | null;
   comparison?: string | null;
+  /** The scoring API's sentence about this result, when it sends one. */
+  description?: string | null;
   value?: number | string;
   ageBandLabel?: string;
   note?: string | null;
@@ -245,6 +249,49 @@ export type ScoreResult = {
   cohorts?: Quintile[];
   path?: PathPlan;
   leverIds?: DomainId[];
+  display?: ScoreDisplay;
+};
+
+/** Copy the scoring API sends with a result, shown on /score in place of the static copy. */
+export type ScoreDisplay = {
+  firstName: string | null;
+  /** Session date, YYYY-MM-DD. */
+  date: string | null;
+  age: number | null;
+  eyebrow: string | null;
+  cohortRange: string | null;
+  cohortTagline: string | null;
+  domainsHeading: string | null;
+  cohortCard: { eyebrow: string | null; title: string | null; body: string | null } | null;
+  levers: { domainId: DomainId; numeral: string; label: string; points: number; copy: string; color: string }[];
+  leversHeading: string | null;
+  leversFooter: string | null;
+  membership: {
+    mode: string;
+    eyebrow: string | null;
+    headline: string | null;
+    body: string | null;
+    bullets: string[];
+    button: string | null;
+    url: string | null;
+    priceNote: string | null;
+  } | null;
+  notMedicalNotice: string | null;
+  disclaimer: string | null;
+  reportButton: string | null;
+  /** Total change since Baseline; Week-8 retest only. */
+  delta: number | null;
+  /** The API's unrounded measurements behind the domain values. */
+  derived: {
+    rhrBpm: number | null;
+    ageBand: string | null;
+    waistToHeight: number | null;
+    systolic: number | null;
+    diastolic: number | null;
+    bpCategory: string | null;
+    who5Raw: number | null;
+    who5Percent: number | null;
+  };
 };
 
 export type PathMove = {
