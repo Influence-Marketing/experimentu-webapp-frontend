@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getSealedReport, type ApiSealedReport } from "@/lib/api/statamic";
 import { hasResult, ordinal } from "@/lib/scoring";
 import type { DomainScore, Entry, ScoreDisplay, ScoringConfig } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
-import { ReportEmailDialog } from "./ReportEmailDialog";
+import { SealedReportDialog } from "./SealedReportDialog";
 
 function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
@@ -76,11 +77,13 @@ function FlagCard({
 
 export function ScoreReveal({ entry }: { entry: Entry }) {
   const router = useRouter();
-  const { reset, setCurrentEntryId } = useFlow();
+  const { flow, reset } = useFlow();
   const { result, participant, phase } = entry;
   const [display, setDisplay] = useState(0);
   const [barsDrawn, setBarsDrawn] = useState(false);
-  const [reportNotice, setReportNotice] = useState(false);
+  const [report, setReport] = useState<ApiSealedReport | null>(null);
+  const [openingReport, setOpeningReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const frame = useRef<number | null>(null);
   const { config } = useContent();
   // Only the scoring API's result reaches this screen: its levers, cohort tiers, next cohort and the
@@ -311,18 +314,34 @@ export function ScoreReveal({ entry }: { entry: Entry }) {
         >
           Done
         </button>
-        <button type="button" className="ghost-btn" style={{ flex: 1 }} onClick={() => setReportNotice(true)}>
-          {api?.reportButton ?? "View your sealed report"}
+        <button
+          type="button"
+          className="ghost-btn"
+          style={{ flex: 1 }}
+          disabled={openingReport}
+          onClick={async () => {
+            // The report belongs to this result's participant and session, fetched with the lead token.
+            if (entry.participantId == null || !flow.authToken) {
+              setReportError("Your session has expired. Start again from the intake screen.");
+              return;
+            }
+            setOpeningReport(true);
+            setReportError(null);
+            const answer = await getSealedReport(entry.participantId, phase, flow.authToken);
+            setOpeningReport(false);
+            if (answer.ok) setReport(answer.report);
+            else setReportError(answer.message);
+          }}
+        >
+          {openingReport ? "Opening…" : (api?.reportButton ?? "View your sealed report")}
         </button>
       </div>
-      <ReportEmailDialog
-        open={reportNotice}
-        onClose={() => setReportNotice(false)}
-        onConfirm={() => {
-          setCurrentEntryId(entry.id);
-          router.push(`/report/${entry.id}`);
-        }}
-      />
+      {reportError ? (
+        <p className="form-error no-print" role="alert">
+          {reportError}
+        </p>
+      ) : null}
+      <SealedReportDialog report={report} onClose={() => setReport(null)} />
       {api?.notMedicalNotice ? (
         <p className="honesty rise" style={{ "--i": 11 }}>
           {api.notMedicalNotice}
