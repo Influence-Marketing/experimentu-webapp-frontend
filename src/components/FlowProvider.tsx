@@ -59,6 +59,11 @@ function inProgress(flow: FlowState, domains: Domain[]) {
   return lead != null && domains.some((d) => (flow.submissions[d.form.handle]?.submittedAt ?? "") <= lead.submittedAt);
 }
 
+/** Every protocol has been submitted after the intake: whoever opens the intake next is a new guest. */
+function sessionComplete(flow: FlowState, domains: Domain[]) {
+  return flow.submissions[LEAD_FORM] != null && !inProgress(flow, domains);
+}
+
 export function FlowProvider({ children }: { children: React.ReactNode }) {
   const { config } = useContent();
   const pathname = usePathname();
@@ -68,7 +73,10 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   const [resuming, setResuming] = useState(false);
 
   useEffect(() => {
-    const saved = loadFlow();
+    let saved = loadFlow();
+    // Opening the intake after a finished session starts a blank one, so the last guest's details
+    // aren't filled in for the next.
+    if (pathname === "/" && sessionComplete(saved, config.domains)) saved = resetStoredFlow();
     setFlow(saved);
     // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
     // load opened on counts, so going back to the intake from Protocol I still works.
@@ -88,6 +96,12 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
     if (pathname === "/" && flow.resumePath) router.replace(flow.resumePath);
     else setResuming(false);
   }, [resuming, pathname, flow.resumePath, router]);
+
+  // Coming back to the intake (e.g. Back from the result) after a finished session also starts afresh.
+  const complete = ready && sessionComplete(flow, config.domains);
+  useEffect(() => {
+    if (complete && pathname === "/") setFlow(resetStoredFlow());
+  }, [complete, pathname]);
 
   // Remember the step page the guest is on while the session is in progress.
   const active = ready && inProgress(flow, config.domains);
