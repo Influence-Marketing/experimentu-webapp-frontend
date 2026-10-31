@@ -20,7 +20,6 @@ export function ReportSentDialog({ email, open, onClose }: { email: string; open
   }, [open]);
 
   const close = () => ref.current?.close();
-
   return (
     <dialog
       ref={ref}
