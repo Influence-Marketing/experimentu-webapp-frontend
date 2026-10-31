@@ -12,8 +12,7 @@ const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 // The Week-8 retest link from the sealed report email. It greets the guest from their baseline and
-// starts a fresh intake set to Week-8 Retest; the email isn't prefilled because the API only sends a
-// masked copy, and typing it again is how the server checks the link is theirs.
+// starts a fresh intake set to Week-8 Retest, prefilling name, age and (when the API sends it) email.
 export default function RetestPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const router = useRouter();
@@ -30,6 +29,7 @@ export default function RetestPage({ params }: { params: Promise<{ token: string
       firstName: retest.participant.first_name,
       age: retest.participant.age,
       phase: "week8",
+      ...(retest.participant.email ? { email: retest.participant.email } : {}),
     });
     router.push("/");
   };

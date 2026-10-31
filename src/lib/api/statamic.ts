@@ -70,11 +70,11 @@ export type ProtocolSubmissionValues = Record<string, string | number | boolean 
 /** lead_form's answer when this participant already has a submission; dates are YYYY-MM-DD. */
 export type AlreadySubmitted = { submissionDate: string | null; retestDate: string | null };
 
-/** GET api/retest/{token}: who the link belongs to and their baseline (no full email). */
+/** GET api/retest/{token}: who the link belongs to and their baseline. `email` is sent only when the API prefills it. */
 export type ApiRetestLink = {
   valid: boolean;
   phase: "week8";
-  participant: { first_name: string; masked_email: string; age: number };
+  participant: { first_name: string; masked_email: string; email?: string | null; age: number };
   baseline: { session_id: string; completed_at: string | null; total: number | null; cohort: string | null; config_version: string };
   expires_at: string;
 };
@@ -200,11 +200,11 @@ export type ApiParticipantScore = {
   };
 };
 
-/** GET api/retest/{token}: who a Week-8 retest link belongs to. The full email is never sent. */
+/** GET api/retest/{token}: who a Week-8 retest link belongs to. `email` is sent only when the API prefills it. */
 export type ApiRetest = {
   valid: boolean;
   phase: "week8";
-  participant: { first_name: string; masked_email: string; age: number | null };
+  participant: { first_name: string; masked_email: string; email?: string | null; age: number | null };
   baseline: {
     session_id: string | number;
     completed_at: string | null;

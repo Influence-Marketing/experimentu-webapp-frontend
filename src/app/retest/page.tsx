@@ -33,10 +33,11 @@ function RetestEntry() {
         setState({ kind: "invalid", message: result.message });
         return;
       }
-      // A retest link starts a fresh Week-8 session for the baseline guest: name
-      // and age come from the baseline, the email must be typed again.
+      // A retest link starts a fresh Week-8 session for the baseline guest: name,
+      // age and (when the API sends it) email come from the baseline.
+      const { first_name, age, email } = result.data.participant;
       reset();
-      setParticipant({ firstName: result.data.participant.first_name, age: result.data.participant.age, phase: "week8" });
+      setParticipant({ firstName: first_name, age, phase: "week8", ...(email ? { email } : {}) });
       setRetestToken(token);
       setState({ kind: "ready", link: result.data });
     });
@@ -78,8 +79,9 @@ function RetestEntry() {
             {state.link.baseline.cohort ? ` as ${state.link.baseline.cohort}` : ""}. Retesting the same five protocols shows what moved.
           </p>
           <p className="field-hint">
-            This link is personal to you. On the next screen, enter the email you used before ({state.link.participant.masked_email}); your
-            name and age are already filled in.
+            {state.link.participant.email
+              ? "This link is personal to you. On the next screen, your name, email and age are already filled in."
+              : `This link is personal to you. On the next screen, enter the email you used before (${state.link.participant.masked_email}); your name and age are already filled in.`}
           </p>
           <div className="btn-row">
             <button type="button" className="primary-btn" onClick={() => router.push("/")}>

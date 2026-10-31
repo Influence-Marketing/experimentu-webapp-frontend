@@ -159,7 +159,9 @@ export function WelcomeForm() {
             ariaLabel={leadForm.session.label}
           />
           {viaRetestLink ? (
-            <p className="field-hint">Your Week-8 retest is open from your personal link. Enter the email you used for your baseline.</p>
+            <p className="field-hint">
+              Your Week-8 retest is open from your personal link.{p.email ? "" : " Enter the email you used for your baseline."}
+            </p>
           ) : p.phase === "week8" ? (
             <p className="field-hint">The Week-8 retest opens from the link in your report email. Typing an email alone will not open it.</p>
           ) : null}
