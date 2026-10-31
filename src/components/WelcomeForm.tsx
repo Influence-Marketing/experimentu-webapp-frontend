@@ -6,7 +6,7 @@ import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
 import { captureAttribution } from "@/lib/attribution";
 import { isKiosk } from "@/lib/kiosk";
 import { LEAD_FORM, submitForm } from "@/lib/api/statamic";
-import { intakeComplete } from "@/lib/storage";
+import { intakeComplete, latestEntryFor } from "@/lib/storage";
 import { RecaptchaCheckbox, type RecaptchaHandle } from "./RecaptchaCheckbox";
 import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
 import { TextCaptcha } from "./TextCaptcha";
@@ -87,6 +87,25 @@ export function WelcomeForm() {
       for (const key of Object.keys(patch)) delete next[key as keyof Participant];
       return next;
     });
+  };
+
+  // The email the other fields were last filled in for, so they can be cleared again if it changes.
+  const filledFor = useRef<string | null>(null);
+
+  // A returning guest's email fills in their details from their last session on this device; any
+  // other email leaves the fields as typed, clearing only what was filled in for a previous match.
+  const updateEmail = (email: string) => {
+    const known = kiosk ? null : latestEntryFor(email);
+    if (known) {
+      const { firstName, age, fearWord, marketingOptIn, dataConsent } = known.participant;
+      filledFor.current = email.trim().toLowerCase();
+      update({ email, firstName, age, fearWord, marketingOptIn, dataConsent });
+    } else if (filledFor.current) {
+      filledFor.current = null;
+      update({ email, firstName: "", age: null, fearWord: "", marketingOptIn: false, dataConsent: false });
+    } else {
+      update({ email });
+    }
   };
 
   // `retestConfirmed` resends after the "already submitted" popup, telling the API to go ahead.
@@ -194,7 +213,7 @@ export function WelcomeForm() {
             placeholder={leadForm.email.placeholder}
             maxLength={leadForm.email.maxLength}
             value={p.email}
-            onChange={(e) => update({ email: e.target.value })}
+            onChange={(e) => updateEmail(e.target.value)}
           />
           <FieldError message={fieldErrors.email} />
         </div>

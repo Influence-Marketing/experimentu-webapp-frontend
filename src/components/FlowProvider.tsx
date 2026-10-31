@@ -136,6 +136,8 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setFlow((prev) => ({
         ...prev,
         submissions: { ...prev.submissions, [formHandle]: { key, submittedAt: new Date().toISOString() } },
+        // A lead for someone else (e.g. the email was changed) mustn't carry the last guest's readings.
+        ...(lead && lead.participantId !== prev.participantId ? { inputs: {}, upgrades: {} } : {}),
         authToken: lead ? lead.token : prev.authToken,
         participantId: lead ? lead.participantId : prev.participantId,
         // The retest link is single use: the accepted lead consumed it.

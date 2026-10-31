@@ -72,6 +72,17 @@ export function latestBaseline(email: string) {
   );
 }
 
+/** The most recent session (either phase) completed on this device with this email. */
+export function latestEntryFor(email: string) {
+  const key = email.trim().toLowerCase();
+  if (!key) return null;
+  return (
+    loadEntries()
+      .filter((e) => e.participant.email.trim().toLowerCase() === key)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
+  );
+}
+
 export function newId() {
   return `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
