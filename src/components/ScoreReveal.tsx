@@ -291,7 +291,7 @@ export function ScoreReveal({ entry }: { entry: Entry }) {
           ) : null}
           {membership.button ? (
             membership.url ? (
-              <a className="primary-btn" href={membership.url} target="_blank" rel="noopener noreferrer">
+              <a className="primary-btn" style={{textDecoration:'none'}} href={membership.url} target="_blank" rel="noopener noreferrer">
                 {membership.button}
               </a>
             ) : (
