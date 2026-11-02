@@ -32,6 +32,15 @@ function FieldError({ message }: { message?: string }) {
   return message ? <p className="field-error">{message}</p> : null;
 }
 
+/** The star after a consent the guest must give; the checkbox's `required` says so to screen readers. */
+function RequiredMark({ required }: { required: boolean }) {
+  return required ? (
+    <span className="required-mark" aria-hidden="true">
+      *
+    </span>
+  ) : null;
+}
+
 /**
  * CMS copy with one phrase turned into a link button. The button sits inside the consent's label, so
  * its click must not also tick the checkbox. Copy without the phrase shows as plain text.
@@ -318,10 +327,14 @@ export function WelcomeForm() {
           <label className="consent-check">
             <input
               type="checkbox"
+              required={leadForm.marketingOptIn.required}
               checked={p.marketingOptIn === true}
               onChange={(e) => update({ marketingOptIn: e.target.checked })}
             />
-            <span>{leadForm.marketingOptIn.text}</span>
+            <span>
+              {leadForm.marketingOptIn.text}
+              <RequiredMark required={leadForm.marketingOptIn.required} />
+            </span>
           </label>
           <FieldError message={fieldErrors.marketingOptIn} />
           <label className="consent-check">
@@ -337,6 +350,7 @@ export function WelcomeForm() {
                 phrase={/health data collection/i}
                 onOpen={() => setOpenPage("health-data-collection")}
               />
+              <RequiredMark required={leadForm.dataConsent.required} />
             </span>
           </label>
           <FieldError message={fieldErrors.dataConsent} />
