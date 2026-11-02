@@ -7,10 +7,12 @@ export async function handleGatePost(request: Request) {
   const form = await request.formData();
   const password = String(form.get("password") ?? "");
   const expected = process.env.GATE_PASSWORD ?? "UScore2026";
-  const origin = new URL(request.url).origin;
+  // Relative Location: behind a proxy request.url is the internal host (0.0.0.0:3000).
+  const redirect = (location: string) =>
+    new NextResponse(null, { status: 303, headers: { Location: location } });
 
   if (password === expected) {
-    const res = NextResponse.redirect(new URL("/", origin), 303);
+    const res = redirect("/");
     res.cookies.set(GATE_COOKIE, GATE_TOKEN, {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
@@ -21,5 +23,5 @@ export async function handleGatePost(request: Request) {
     return res;
   }
 
-  return NextResponse.redirect(new URL("/gate?error=1", origin), 303);
+  return redirect("/gate?error=1");
 }
