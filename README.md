@@ -12,7 +12,7 @@ npm run dev                  # http://localhost:3000
 
 The backend must be up on the URL in `NEXT_PUBLIC_API_BASE_URL` (`php artisan serve --port=8010` in the backend checkout) with that origin in its `CORS_ALLOWED_ORIGINS`. `.claude/launch.json` starts both.
 
-The whole site sits behind a private-preview gate (`/gate`); the passphrase is `GATE_PASSWORD` (default in `src/lib/gate.ts`). Without a reachable backend the intake and protocol screens still render from the bundled copy in `src/lib/scoring-config.ts` and `src/lib/lead-form-config.ts`, but nothing can be submitted.
+Without a reachable backend the intake and protocol screens still render from the bundled copy in `src/lib/scoring-config.ts` and `src/lib/lead-form-config.ts`, but nothing can be submitted.
 
 ## Routes
 
@@ -22,7 +22,7 @@ The whole site sits behind a private-preview gate (`/gate`); the passphrase is `
 | `/protocol/{nervous,movement,metabolism,evidence,recovery}` | The five protocols, each posted to its Statamic form with the token; saved answers are prefilled on return. |
 | `/score` | The reveal, from `GET /api/participants/{id}/score`. |
 | `/report`, `/report/{id}` | The sealed report sheet for the current or a locally kept entry. |
-| `/retest?token=…` | Entry for the Week-8 retest link from the report email: greets the guest, prefills name and age, locks the session to Week-8 and sends the token with the lead. A Week-8 lead without it is refused by the backend. |
+| `/retest?token=…`, `/retest/{token}` | Entry for the Week-8 retest link from the report email, checked with `GET /api/retest/{token}`. When the retest is open it greets the guest, prefills name, email and age, locks the session to Week-8 and sends the token with the lead; otherwise the API's message shows in a dialog. A Week-8 picked on `/` is checked the same way by email (`GET /api/retest/{email}`) when the email field is left, and Begin stays disabled until it's open. |
 | `/wall?event=…` | Venue display of approved fear words (`GET /api/fear-wall`), refreshed every 10 s, sized by frequency, never a name. |
 
 Add `?kiosk=1` to any URL on a venue device to turn on kiosk mode (`?kiosk=0` turns it off): a floating *New guest* button, browser autofill off on the intake, and after 90 s idle a 15 s warning then a full wipe of the guest's state and local report history (`src/lib/kiosk.ts`, `src/components/KioskMode.tsx`).

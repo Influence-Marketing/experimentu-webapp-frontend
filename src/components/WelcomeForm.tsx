@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
 import { captureAttribution } from "@/lib/attribution";
 import { isKiosk } from "@/lib/kiosk";
-import { LEAD_FORM, submitForm } from "@/lib/api/statamic";
-import { intakeComplete, latestEntryFor } from "@/lib/storage";
+import { checkRetest, LEAD_FORM, submitForm } from "@/lib/api/statamic";
+import { intakeComplete, isEmail } from "@/lib/storage";
+import { PageDialog, type LegalPageSlug } from "./PageDialog";
 import { RecaptchaCheckbox, type RecaptchaHandle } from "./RecaptchaCheckbox";
-import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
+import { retestNotice, SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
 import { TextCaptcha } from "./TextCaptcha";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
@@ -19,11 +20,42 @@ import type { Participant, Phase } from "@/lib/types";
 
 type FieldErrors = Partial<Record<keyof Participant, string>>;
 
+/** The Week-8 retest check for one email: "closed" when it can't start now, "unreachable" when it couldn't be asked. */
+type RetestCheckState = { email: string; status: "checking" | "open" | "closed" | "unreachable" };
+
+const emailKey = (email: string) => email.trim().toLowerCase();
+
 // Google reCAPTCHA v2 site key; without one the lead form uses the built-in TextCaptcha instead.
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ?? "";
 
 function FieldError({ message }: { message?: string }) {
   return message ? <p className="field-error">{message}</p> : null;
+}
+
+/**
+ * CMS copy with one phrase turned into a link button. The button sits inside the consent's label, so
+ * its click must not also tick the checkbox. Copy without the phrase shows as plain text.
+ */
+function LinkedPhrase({ text, phrase, onOpen }: { text: string; phrase: RegExp; onOpen: () => void }) {
+  const match = phrase.exec(text);
+  if (!match) return <>{text}</>;
+  const end = match.index + match[0].length;
+  return (
+    <>
+      {text.slice(0, match.index)}
+      <button
+        type="button"
+        className="inline-link"
+        onClick={(e) => {
+          e.preventDefault();
+          onOpen();
+        }}
+      >
+        {match[0]}
+      </button>
+      {text.slice(end)}
+    </>
+  );
 }
 
 /** The intake's headline and protocol strip. Static, so it renders on the server, before the saved flow loads. */
@@ -60,18 +92,64 @@ export function WelcomeHero() {
 export function WelcomeForm() {
   const router = useRouter();
   const { config, leadForm } = useContent();
-  const { flow, setParticipant, markSubmitted } = useFlow();
+  const { flow, ready: flowReady, setParticipant, markSubmitted } = useFlow();
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<SubmissionNotice | null>(null);
+  const [openPage, setOpenPage] = useState<LegalPageSlug | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaPassed, setCaptchaPassed] = useState(false);
+  const [retestCheck, setRetestCheck] = useState<RetestCheckState | null>(null);
+  const latestCheck = useRef<string | null>(null);
   const captcha = useRef<RecaptchaHandle>(null);
   const p = flow.participant;
-  const ready = intakeComplete(p) && (RECAPTCHA_SITE_KEY ? captchaToken != null : captchaPassed);
   const kiosk = isKiosk();
   const viaRetestLink = flow.retestToken != null;
+  // A Week-8 retest picked here, not opened from the email link, starts only once the API says it's
+  // open for the email typed; the link was already checked on its own page.
+  const needsRetestCheck = p.phase === "week8" && !viaRetestLink;
+  const check = retestCheck?.email === emailKey(p.email) ? retestCheck : null;
+  const ready =
+    intakeComplete(p) &&
+    (!needsRetestCheck || check?.status === "open") &&
+    (RECAPTCHA_SITE_KEY ? captchaToken != null : captchaPassed);
+
+  // Asks the API whether this email's Week-8 retest is open, every time it's called; any other answer
+  // shows in the notice dialog.
+  const checkWeek8 = async (email: string) => {
+    const key = emailKey(email);
+    if (!isEmail(key)) return;
+    latestCheck.current = key;
+    setRetestCheck({ email: key, status: "checking" });
+    const result = await checkRetest(key);
+    // A newer email was asked about in the meantime.
+    if (latestCheck.current !== key) return;
+    if (result.ok) {
+      setRetestCheck({ email: key, status: "open" });
+      return;
+    }
+    setRetestCheck({ email: key, status: result.reason === "unreachable" ? "unreachable" : "closed" });
+    setNotice(retestNotice(result));
+  };
+
+  // Back on the intake mid-session (e.g. from Protocol I) with a Week-8 email already in: check it again.
+  useEffect(() => {
+    if (flowReady && needsRetestCheck) void checkWeek8(p.email);
+    // Once the saved flow is loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowReady]);
+
+  const week8Hint =
+    check?.status === "checking"
+      ? "Checking your Week-8 retest…"
+      : check?.status === "open"
+        ? "Your Week-8 retest is open."
+        : check?.status === "closed"
+          ? "The Week-8 retest isn't available for this email yet."
+          : check?.status === "unreachable"
+            ? "We couldn't check your Week-8 retest. Leave the email field to try again."
+            : "Enter the email you used for your baseline to check your Week-8 retest.";
 
   // Keep the arrival URL's UTM / referrer / event from the first visit, before any navigation drops them.
   useEffect(() => {
@@ -87,25 +165,6 @@ export function WelcomeForm() {
       for (const key of Object.keys(patch)) delete next[key as keyof Participant];
       return next;
     });
-  };
-
-  // The email the other fields were last filled in for, so they can be cleared again if it changes.
-  const filledFor = useRef<string | null>(null);
-
-  // A returning guest's email fills in their details from their last session on this device; any
-  // other email leaves the fields as typed, clearing only what was filled in for a previous match.
-  const updateEmail = (email: string) => {
-    const known = kiosk ? null : latestEntryFor(email);
-    if (known) {
-      const { firstName, age, fearWord, marketingOptIn, dataConsent } = known.participant;
-      filledFor.current = email.trim().toLowerCase();
-      update({ email, firstName, age, fearWord, marketingOptIn, dataConsent });
-    } else if (filledFor.current) {
-      filledFor.current = null;
-      update({ email, firstName: "", age: null, fearWord: "", marketingOptIn: false, dataConsent: false });
-    } else {
-      update({ email });
-    }
   };
 
   // `retestConfirmed` resends after the "already submitted" popup, telling the API to go ahead.
@@ -173,7 +232,10 @@ export function WelcomeForm() {
             options={["baseline", "week8"] as Phase[]}
             labels={[leadForm.session.baselineLabel, leadForm.session.week8Label]}
             value={viaRetestLink ? "week8" : p.phase}
-            onChange={(phase) => update({ phase })}
+            onChange={(phase) => {
+              update({ phase });
+              if (phase === "week8") void checkWeek8(p.email);
+            }}
             disabled={viaRetestLink}
             ariaLabel={leadForm.session.label}
           />
@@ -182,7 +244,9 @@ export function WelcomeForm() {
               Your Week-8 retest is open from your personal link.{p.email ? "" : " Enter the email you used for your baseline."}
             </p>
           ) : p.phase === "week8" ? (
-            <p className="field-hint">The Week-8 retest opens from the link in your report email. Typing an email alone will not open it.</p>
+            <p className="field-hint" aria-live="polite">
+              {week8Hint}
+            </p>
           ) : null}
           <FieldError message={fieldErrors.phase} />
         </div>
@@ -213,7 +277,10 @@ export function WelcomeForm() {
             placeholder={leadForm.email.placeholder}
             maxLength={leadForm.email.maxLength}
             value={p.email}
-            onChange={(e) => updateEmail(e.target.value)}
+            onChange={(e) => update({ email: e.target.value })}
+            onBlur={(e) => {
+              if (needsRetestCheck) void checkWeek8(e.target.value);
+            }}
           />
           <FieldError message={fieldErrors.email} />
         </div>
@@ -264,7 +331,13 @@ export function WelcomeForm() {
               checked={p.dataConsent === true}
               onChange={(e) => update({ dataConsent: e.target.checked })}
             />
-            <span>{leadForm.dataConsent.text}</span>
+            <span>
+              <LinkedPhrase
+                text={leadForm.dataConsent.text}
+                phrase={/health data collection/i}
+                onOpen={() => setOpenPage("health-data-collection")}
+              />
+            </span>
           </label>
           <FieldError message={fieldErrors.dataConsent} />
         </div>
@@ -284,6 +357,7 @@ export function WelcomeForm() {
           </button>
         </div>
       </div>
+      <PageDialog slug={openPage} onClose={() => setOpenPage(null)} />
       <SubmissionNoticeDialog
         notice={notice}
         onClose={() => setNotice(null)}

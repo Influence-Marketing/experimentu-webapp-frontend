@@ -1,15 +1,18 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
+import { LEGAL_PAGES, PageDialog, type LegalPageSlug } from "./PageDialog";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { config } = useContent();
   const { flow, reset } = useFlow();
+  const [openPage, setOpenPage] = useState<LegalPageSlug | null>(null);
   const protocolIndex = config.domains.findIndex((_, i) => pathname === `/protocol/${i + 1}`);
   const isProtocol = protocolIndex >= 0;
 
@@ -100,12 +103,19 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       </header>
       <main className={`app-main${wide ? " wide" : ""}`}>{children}</main>
       <footer className="app-footer no-print">
-        <Link href="/privacy#honesty">Honesty &amp; privacy</Link>
-        <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
+        {LEGAL_PAGES.map((page) => (
+          <Fragment key={page.slug}>
+            <button type="button" onClick={() => setOpenPage(page.slug)}>
+              {page.label}
+            </button>
+            <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
+          </Fragment>
+        ))}
         <span>
-          Scoring config v{config.version} — prototype, not a medical device
+          Scoring config v{config.version} — not a medical device
         </span>
       </footer>
+      <PageDialog slug={openPage} onClose={() => setOpenPage(null)} />
     </div>
   );
 }

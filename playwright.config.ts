@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // Runs against an already-started guest site (and backend) so the same suite
 // works locally against `next dev` and in CI against `next start`.
-// E2E_BASE_URL: the guest site; E2E_GATE_TOKEN: the private-preview cookie value.
+// E2E_BASE_URL: the guest site.
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
