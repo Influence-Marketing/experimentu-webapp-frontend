@@ -3,14 +3,6 @@ import { expect, test, type Page } from "@playwright/test";
 // The guest flow end to end against the real backend: intake, five protocols,
 // reveal. Each run uses a fresh email so the backend treats it as a new guest.
 
-const GATE_COOKIE = "u_gate";
-const GATE_TOKEN = process.env.E2E_GATE_TOKEN ?? "granted-aug2026";
-
-async function passGate(page: Page) {
-  const base = new URL(process.env.E2E_BASE_URL ?? "http://localhost:3000");
-  await page.context().addCookies([{ name: GATE_COOKIE, value: GATE_TOKEN, domain: base.hostname, path: "/" }]);
-}
-
 async function fillIntake(page: Page, opts: { email: string; phase?: "baseline" | "week8"; age?: number }) {
   await page.goto("/");
   if (opts.phase === "week8") await page.getByRole("button", { name: /week-8/i }).click();
@@ -20,10 +12,6 @@ async function fillIntake(page: Page, opts: { email: string; phase?: "baseline" 
   await page.getByLabel(/one word/i).fill("Falling");
   await page.getByText(/health data collection/i).click();
 }
-
-test.beforeEach(async ({ page }) => {
-  await passGate(page);
-});
 
 test("baseline happy path scores the session from the backend", async ({ page }) => {
   const email = `e2e-${Date.now()}@example.com`;

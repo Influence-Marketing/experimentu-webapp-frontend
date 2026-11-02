@@ -72,17 +72,6 @@ export function latestBaseline(email: string) {
   );
 }
 
-/** The most recent session (either phase) completed on this device with this email. */
-export function latestEntryFor(email: string) {
-  const key = email.trim().toLowerCase();
-  if (!key) return null;
-  return (
-    loadEntries()
-      .filter((e) => e.participant.email.trim().toLowerCase() === key)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] || null
-  );
-}
-
 export function newId() {
   return `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -115,11 +104,12 @@ export function wipeDevice() {
   }
 }
 
+export const isEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
 export function intakeComplete(p: Participant) {
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim());
   return (
     p.firstName.trim().length > 0 &&
-    emailOk &&
+    isEmail(p.email) &&
     Number.isFinite(p.age) &&
     (p.age ?? 0) >= 18 &&
     (p.age ?? 0) <= 105 &&

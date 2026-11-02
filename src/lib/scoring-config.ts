@@ -506,6 +506,6 @@ export const scoringConfig: ScoringConfig = {
   features: {
     percentiles: true,
     percentilesNote:
-      "Enabled with prototype estimates (see percentiles.disclosure). Swap the distributions in `percentiles.domains` when the commissioned derivation lands.",
+      "Enabled with interim estimates (see percentiles.disclosure). Swap the distributions in `percentiles.domains` when the commissioned derivation lands.",
   },
 };

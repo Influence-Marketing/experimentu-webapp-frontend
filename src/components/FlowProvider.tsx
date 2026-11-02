@@ -74,9 +74,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let saved = loadFlow();
-    // Opening the intake after a finished session starts a blank one, so the last guest's details
-    // aren't filled in for the next.
-    if (pathname === "/" && sessionComplete(saved, config.domains)) saved = resetStoredFlow();
+    // Opening the intake starts a blank form, so no earlier visit's details are filled in. Only the
+    // retest link from the report email prefills it, and a session under way is resumed below.
+    if (pathname === "/" && !inProgress(saved, config.domains) && saved.retestToken == null) saved = resetStoredFlow();
     setFlow(saved);
     // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
     // load opened on counts, so going back to the intake from Protocol I still works.

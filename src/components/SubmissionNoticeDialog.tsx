@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { RetestRefusal } from "@/lib/api/statamic";
 
 export type SubmissionNotice = {
   /**
    * "already-submitted": this email already did this session (409); the participant can retest.
-   * "retest-not-open": Week-8 Retest picked before it opens (422); nothing to do but wait.
+   * "retest-not-open": Week-8 Retest picked before it opens (422, or the retest check); nothing to do but wait.
+   * "retest-unavailable": the retest check found no baseline or usable link, or couldn't be made.
    * "invalid": the API rejected some answers (422); `details` lists its messages.
    * "failed": the answers couldn't be saved for another reason (network, session, server).
    */
-  kind: "already-submitted" | "retest-not-open" | "invalid" | "failed";
+  kind: "already-submitted" | "retest-not-open" | "retest-unavailable" | "invalid" | "failed";
   message: string;
   submissionDate: string | null;
   retestDate: string | null;
@@ -34,6 +36,14 @@ const COPY: Record<SubmissionNotice["kind"], { kicker: string; heading: React.Re
       </>
     ),
   },
+  "retest-unavailable": {
+    kicker: "Week-8 retest",
+    heading: (
+      <>
+        We can&apos;t <em>open</em> your retest.
+      </>
+    ),
+  },
   invalid: {
     kicker: "Check your answers",
     heading: (
@@ -51,6 +61,16 @@ const COPY: Record<SubmissionNotice["kind"], { kicker: string; heading: React.Re
     ),
   },
 };
+
+/** A Week-8 retest check that didn't clear, as this dialog shows it. */
+export function retestNotice(refusal: RetestRefusal): SubmissionNotice {
+  return {
+    kind: refusal.reason === "not-open" ? "retest-not-open" : "retest-unavailable",
+    message: refusal.message,
+    submissionDate: refusal.baselineDate,
+    retestDate: refusal.retestDate,
+  };
+}
 
 const DAY_MS = 86_400_000;
 

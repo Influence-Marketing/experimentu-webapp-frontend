@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Privacy & honesty — Experiment U™",
 };
 
-// What the prototype collects and why, and how honest the U Score™ is about itself. Only what the
+// What the site collects and why, and how honest the U Score™ is about itself. Only what the
 // app and its API actually do is described here; the full privacy policy replaces this before launch.
 export default function PrivacyPage() {
   const { honesty } = scoringConfig;
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
         <p>Each domain shows the category your measurement falls in, rather than a percentile.</p>
 
         <p className="field-hint">
-          This page describes the Experiment U™ prototype. The full privacy policy replaces it before launch.
+          The full privacy policy replaces this page before launch.
         </p>
       </article>
     </AppShell>
