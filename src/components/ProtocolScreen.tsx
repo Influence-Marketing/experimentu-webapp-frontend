@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fromProtocolValues, toProtocolPayload } from "@/lib/api/mappers";
 import { getFormSubmission, LEAD_FORM, submitForm } from "@/lib/api/statamic";
-import { rangeIssues } from "@/lib/ranges";
-import { scoreDomain } from "@/lib/scoring";
+import { fromProtocolValues, rangeIssues, toProtocolPayload } from "@/lib/fields";
 import { intakeComplete } from "@/lib/storage";
 import type { DomainId } from "@/lib/types";
 import { useContent } from "./ContentProvider";
@@ -13,26 +11,21 @@ import { useFlow } from "./FlowProvider";
 import { DomainFields } from "./DomainInputs";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { SubmissionNoticeDialog, type SubmissionNotice } from "./SubmissionNoticeDialog";
-import { NumberField } from "./ui/NumberField";
 
 export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
   const router = useRouter();
   const { config } = useContent();
-  const { flow, setDomainInputs, setUpgrade, markSubmitted, clearAuthToken, ready } = useFlow();
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const { flow, setDomainInputs, markSubmitted, clearAuthToken, ready } = useFlow();
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<SubmissionNotice | null>(null);
-  const index = config.domains.findIndex((d) => d.id === domainId);
-  const domain = config.domains[index];
+  const index = config.protocols.findIndex((p) => p.id === domainId);
+  const protocol = config.protocols[index];
   const n = index + 1;
-  const total = config.domains.length;
-  const inputs = flow.inputs[domain.id] || {};
-  const upgradeValue = domain.upgrade ? (flow.upgrades[domain.upgrade.key] ?? null) : null;
-  const issues = useMemo(() => rangeIssues(domain, inputs, upgradeValue), [domain, inputs, upgradeValue]);
-  const canContinue = useMemo(
-    () => scoreDomain(domain, inputs, flow.participant) != null && issues.length === 0,
-    [domain, inputs, flow.participant, issues],
-  );
+  const total = config.protocols.length;
+  const inputs = useMemo(() => flow.inputs[protocol.id] || {}, [flow.inputs, protocol.id]);
+  const issues = useMemo(() => rangeIssues(protocol, inputs), [protocol, inputs]);
+  const notScored = protocol.notScored ? inputs[protocol.notScored] : null;
+  const canContinue = useMemo(() => protocol.complete(inputs) && issues.length === 0, [protocol, inputs, issues]);
 
   const allowed = intakeComplete(flow.participant) && flow.submissions[LEAD_FORM] != null;
 
@@ -49,34 +42,29 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
     edited.current = false;
     let cancelled = false;
     setPrefilling(true);
-    getFormSubmission(domain.form.handle, flow.authToken).then((values) => {
+    getFormSubmission(protocol.form.handle, flow.authToken).then((values) => {
       if (cancelled) return;
       setPrefilling(false);
       if (!values || edited.current) return;
-      const saved = fromProtocolValues(domain, values);
-      setDomainInputs(domain.id, saved.inputs);
-      if (domain.upgrade) {
-        setUpgrade(domain.upgrade.key, saved.upgradeValue);
-        if (saved.upgradeValue != null) setUpgradeOpen(true);
-      }
+      setDomainInputs(protocol.id, fromProtocolValues(protocol, values));
     });
     return () => {
       cancelled = true;
     };
-  }, [ready, allowed, flow.authToken, domain, setDomainInputs, setUpgrade]);
+  }, [ready, allowed, flow.authToken, protocol, setDomainInputs]);
 
   if (!ready || !allowed) return null;
 
   const goBack = () => {
     if (index === 0) router.push("/");
-    else router.push(`/protocol/${config.domains[index - 1].id}`);
+    else router.push(`/protocol/${config.protocols[index - 1].id}`);
   };
 
   const goNext = async () => {
-    const payload = toProtocolPayload(domain, inputs, upgradeValue, flow.participant);
+    const payload = toProtocolPayload(protocol, inputs);
     setSubmitting(true);
     setNotice(null);
-    const result = await submitForm(domain.form.handle, payload, flow.authToken);
+    const result = await submitForm(protocol.form.handle, payload, flow.authToken);
     setSubmitting(false);
     if (!result.ok) {
       if (result.unauthorized) clearAuthToken();
@@ -91,74 +79,53 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
       });
       return;
     }
-    markSubmitted(domain.form.handle, JSON.stringify(payload));
+    markSubmitted(protocol.form.handle, JSON.stringify(payload));
     // The score page scores the session from its submissions.
-    router.push(n === total ? "/score" : `/protocol/${config.domains[n].id}`);
+    router.push(n === total ? "/score" : `/protocol/${config.protocols[n].id}`);
   };
 
   return (
-    <div style={{ "--domain-color": `var(--${domain.color}-deep)` }}>
+    <div style={{ "--domain-color": `var(--${protocol.color}-deep)` }}>
       <LoadingOverlay show={prefilling} label="Loading your saved answers" />
       <div className="progress-rail rise" style={{ "--i": 0 }}>
-        {config.domains.map((d, i) => (
-          <span key={d.id} className={`seg${i + 1 < n ? " done" : i + 1 === n ? " current" : ""}`} />
+        {config.protocols.map((p, i) => (
+          <span key={p.id} className={`seg${i + 1 < n ? " done" : i + 1 === n ? " current" : ""}`} />
         ))}
         <span className="progress-count">
           {n} / {total}
         </span>
       </div>
       <div className="protocol-head rise" style={{ "--i": 1 }}>
-        <span className="ghost-numeral">{domain.numeral}</span>
+        <span className="ghost-numeral">{protocol.numeral}</span>
         <div className="kicker">
-          <span>Protocol {domain.numeral}</span>
-          <span className="accent">{domain.name}</span>
+          <span>Protocol {protocol.numeral}</span>
+          <span className="accent">{protocol.name}</span>
         </div>
-        <h1>{domain.metric}</h1>
-        <p className="tagline">{domain.tagline}</p>
+        <h1>{protocol.metric}</h1>
+        <p className="tagline">{protocol.tagline}</p>
       </div>
       <div className="howto rise" style={{ "--i": 2 }}>
-        <p className="howto-label">{domain.stepTitle}</p>
+        <p className="howto-label">{protocol.stepTitle}</p>
         <ol>
-          {domain.howTo.map((step) => (
+          {protocol.howTo.map((step) => (
             <li key={step}>{step}</li>
           ))}
         </ol>
       </div>
       <div className="rise" style={{ "--i": 3 }}>
         <DomainFields
-          domain={domain}
+          protocol={protocol}
           inputs={inputs}
           onInputs={(next) => {
             edited.current = true;
-            setDomainInputs(domain.id, next);
+            setDomainInputs(protocol.id, next);
           }}
-          participant={flow.participant}
         />
       </div>
-      {domain.upgrade ? (
-        <div className={`upgrade rise${upgradeOpen ? " open" : ""}`} style={{ "--i": 4 }}>
-          <button type="button" className="upgrade-toggle" onClick={() => setUpgradeOpen(!upgradeOpen)}>
-            <span>{domain.upgrade.prompt}</span>
-            <span className="chev">+</span>
-          </button>
-          {upgradeOpen ? (
-            <div className="upgrade-body">
-              <label className="field-label">{domain.upgrade.label}</label>
-              <NumberField
-                value={upgradeValue}
-                onChange={(v) => {
-                  edited.current = true;
-                  setUpgrade(domain.upgrade!.key, v);
-                }}
-                min={domain.upgrade.min}
-                max={domain.upgrade.max}
-                unit={domain.upgrade.unit}
-                ariaLabel={domain.upgrade.label}
-              />
-              <p className="upgrade-note">{domain.upgrade.note}</p>
-            </div>
-          ) : null}
-        </div>
+      {notScored ? (
+        <p className="field-hint not-scored-hint" role="status">
+          This area will show as <b>not scored</b> ({String(notScored)}). It is left out of the total, which is then out of 80.
+        </p>
       ) : null}
       <SubmissionNoticeDialog notice={notice} onClose={() => setNotice(null)} />
       {issues.length ? (
@@ -175,7 +142,7 @@ export function ProtocolScreen({ domainId }: { domainId: DomainId }) {
             ? "Saving…"
             : n === total
               ? "Reveal my U Score™"
-              : `Continue to Protocol ${config.domains[n].numeral}`}
+              : `Continue to Protocol ${config.protocols[n].numeral}`}
         </button>
       </div>
     </div>

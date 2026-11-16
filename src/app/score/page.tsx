@@ -10,24 +10,24 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { apiScorePatch } from "@/lib/api/score";
 import { getParticipantScore, LEAD_FORM } from "@/lib/api/statamic";
 import { updateEntry } from "@/lib/storage";
-import type { Entry } from "@/lib/types";
+import type { Entry, ScoreResult } from "@/lib/types";
 
 export default function ScorePage() {
   const router = useRouter();
   const { ready, currentEntry, flow, completeProtocols } = useFlow();
-  const { config, scoring } = useContent();
-  const [entry, setEntry] = useState<Entry | null>(null);
+  const { config } = useContent();
+  const [entry, setEntry] = useState<(Entry & { result: ScoreResult }) | null>(null);
   const [failed, setFailed] = useState(false);
   const started = useRef(false);
 
   // Protocols submitted since the last intake, so /score can be opened before all five are done.
   const lead = flow.submissions[LEAD_FORM];
   const inSession =
-    lead != null && config.domains.some((d) => (flow.submissions[d.form.handle]?.submittedAt ?? "") > lead.submittedAt);
+    lead != null && config.protocols.some((p) => (flow.submissions[p.form.handle]?.submittedAt ?? "") > lead.submittedAt);
 
-  // Once per visit: rescore this session from what has been submitted so far, then show the scoring
-  // API's result for it, kept on the entry so the report shows the same numbers. This page shows
-  // only the API's score: without it (API, config, token, id or session missing) it says so.
+  // Once per visit: open this session's entry from what has been submitted so far, then show the
+  // scoring API's result for it, kept on the entry so the report shows the same numbers. This page
+  // shows only the API's score: without it (API, token, id or session missing) it says so.
   useEffect(() => {
     if (!ready || started.current) return;
     started.current = true;
@@ -37,20 +37,20 @@ export default function ScorePage() {
       return;
     }
     const participantId = target.participantId;
-    if (!scoring || !flow.authToken || participantId == null) {
+    if (!flow.authToken || participantId == null) {
       setFailed(true);
       return;
     }
     getParticipantScore(participantId, flow.authToken).then((api) => {
-      const patch = api ? apiScorePatch(target, api, scoring, config) : null;
-      if (!patch) {
+      const patch = api ? apiScorePatch(target, api) : null;
+      if (!patch?.result) {
         setFailed(true);
         return;
       }
       updateEntry(target.id, patch);
-      setEntry({ ...target, ...patch });
+      setEntry({ ...target, ...patch, result: patch.result });
     });
-  }, [ready, inSession, completeProtocols, currentEntry, scoring, config, flow.authToken, router]);
+  }, [ready, inSession, completeProtocols, currentEntry, flow.authToken, router]);
 
   if (!ready || (!currentEntry && !inSession)) return null;
 

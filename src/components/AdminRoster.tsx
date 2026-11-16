@@ -25,7 +25,8 @@ export function AdminRoster() {
         e.phase === "baseline" &&
         e.participant.email.toLowerCase() === entry.participant.email.toLowerCase(),
     );
-    return baseline ? entry.result.total - baseline.result.total : null;
+    if (!baseline?.result || !entry.result || baseline.result.outOf !== entry.result.outOf) return null;
+    return entry.result.total - baseline.result.total;
   };
 
   return (
@@ -72,7 +73,7 @@ export function AdminRoster() {
                 <th>Session</th>
                 <th>Date</th>
                 <th>U Score™</th>
-                <th>Quintile</th>
+                <th>Word</th>
                 <th>Δ</th>
                 <th>Flags</th>
                 <th />
@@ -108,14 +109,14 @@ export function AdminRoster() {
                         </button>
                       </td>
                       <td>{new Date(entry.createdAt).toLocaleDateString()}</td>
-                      <td className="at-score">{entry.result.total}</td>
-                      <td>{entry.result.quintile.name}</td>
+                      <td className="at-score">
+                        {entry.result ? `${entry.result.total}${entry.result.outOf !== 100 ? ` / ${entry.result.outOf}` : ""}` : "—"}
+                      </td>
+                      <td>{entry.result?.word ?? (entry.result ? "no word" : "—")}</td>
                       <td>{delta == null ? "—" : `${delta >= 0 ? "+" : ""}${delta}`}</td>
                       <td>
-                        {entry.result.flags.length
-                          ? entry.result.flags.map((f) => (
-                              <span key={f.flagId} className="flag-dot" title={f.title} />
-                            ))
+                        {entry.result?.flags.length
+                          ? entry.result.flags.map((f) => <span key={f.id} className="flag-dot" title={f.title} />)
                           : "—"}
                       </td>
                       <td>

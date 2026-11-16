@@ -1,21 +1,20 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { ProtocolScreen } from "@/components/ProtocolScreen";
-import { scoringConfig } from "@/lib/scoring-config";
-import type { DomainId } from "@/lib/types";
+import { protocolsConfig } from "@/lib/protocols";
 
 export function generateStaticParams() {
-  return scoringConfig.domains.map((d) => ({ id: d.id }));
+  return protocolsConfig.protocols.map((p) => ({ id: p.id }));
 }
 
 export default async function ProtocolPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  // Domain ids are fixed scoring keys; the CMS-merged domain is read from context in ProtocolScreen.
-  const domain = scoringConfig.domains.find((d) => d.id === (id as DomainId));
-  if (!domain) notFound();
+  // Protocol ids are fixed scoring keys; the CMS-merged protocol is read from context in ProtocolScreen.
+  const protocol = protocolsConfig.protocols.find((p) => p.id === id);
+  if (!protocol) notFound();
   return (
     <AppShell>
-      <ProtocolScreen domainId={domain.id} />
+      <ProtocolScreen domainId={protocol.id} />
     </AppShell>
   );
 }

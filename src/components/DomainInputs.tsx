@@ -1,332 +1,233 @@
 "use client";
 
-import { mean, scoreDomain } from "@/lib/scoring";
-import type {
-  BpInput,
-  BpReading,
-  Domain,
-  DomainInputState,
-  LabelText,
-  MeasureUnit,
-  NumberInput,
-  Participant,
-  ReadingsInput,
-  WaistHeightInput,
-  Who5Input,
-} from "@/lib/types";
+import { numberRange, visibleFields } from "@/lib/fields";
+import type { DomainInputState, FieldSpec, FieldValue, Protocol } from "@/lib/types";
 import { FieldLabel } from "./ui/FieldLabel";
 import { NumberField } from "./ui/NumberField";
 import { SegToggle } from "./ui/SegToggle";
 
-function readingLabel(labels: LabelText[] | undefined, i: number, base: string, optional: string | null) {
-  return labels?.[i] ?? { label: `${base} ${i + 1}`, opt: optional ?? undefined };
-}
-
-function ReadingsFields({
-  domain,
-  inputs,
-  onInputs,
-}: {
-  domain: Domain;
+type FieldProps = {
+  field: FieldSpec;
+  value: FieldValue | undefined;
   inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-}) {
-  const spec = domain.input as ReadingsInput;
-  const readings = (inputs.readings as Array<number | null> | undefined) || [];
-  const setReading = (index: number, value: number | null) => {
-    const next = [...readings];
-    next[index] = value;
-    onInputs({ ...inputs, readings: next });
-  };
-  const avg = mean(readings);
-  return (
-    <>
-      {Array.from({ length: spec.maxReadings }).map((_, i) => (
-        <div className="field-block" key={i}>
-          <FieldLabel
-            {...readingLabel(spec.readingLabels, i, spec.readingLabel, i >= spec.minReadings ? "optional" : null)}
-          />
-          <NumberField
-            value={readings[i] ?? null}
-            onChange={(v) => setReading(i, v)}
-            min={spec.min}
-            max={spec.max}
-            step={spec.step}
-            unit={spec.unit}
-            placeholder={spec.placeholder}
-            ariaLabel={`${spec.readingLabel} ${i + 1}`}
-          />
-        </div>
-      ))}
-      <div className="derived-readout">
-        <span className="dr-label">{spec.averageLabel}</span>
-        <span className={`dr-value${avg == null ? " placeholder" : ""}`}>
-          {avg == null ? "——" : `${Math.round(avg)} ${spec.unit}`}
-        </span>
-      </div>
-    </>
-  );
-}
+  onChange: (value: FieldValue) => void;
+};
 
-function NumberFields({
-  domain,
-  inputs,
-  onInputs,
-  participant,
-}: {
-  domain: Domain;
-  inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-  participant: Participant;
-}) {
-  const spec = domain.input as NumberInput;
-  const scoring = domain.scoring;
-  const ageBands = scoring.type === "age-bands" ? scoring.ageBands : null;
-  const age = participant.age ?? 0;
-  const band = ageBands
-    ? ageBands.find((b) => age >= b.ageMin && (b.ageMax === null || age <= b.ageMax)) || ageBands[0]
-    : null;
-  return (
-    <>
-      <div className="field-block">
-        <label className="field-label">{spec.label}</label>
-        <NumberField
-          value={inputs.value ?? null}
-          onChange={(value) => onInputs({ ...inputs, value })}
-          min={spec.min}
-          max={spec.max}
-          step={spec.step}
-          unit={spec.unit}
-          placeholder={spec.placeholder}
-          ariaLabel={spec.label}
-        />
-      </div>
-      {band ? (
-        <p className="field-hint">
-          Scored on the {band.label} table
-          {age < 50 && scoring.type === "age-bands" ? ` — ${scoring.under50Note}` : ""}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function WaistHeightFields({
-  domain,
-  inputs,
-  onInputs,
-}: {
-  domain: Domain;
-  inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-}) {
-  const spec = domain.input as WaistHeightInput;
-  const unit = (inputs.unit || spec.defaultUnit) as MeasureUnit;
-  const ratio =
-    Number.isFinite(inputs.waist) && Number.isFinite(inputs.height) && (inputs.height ?? 0) > 0
-      ? ((inputs.waist as number) / (inputs.height as number)).toFixed(2)
-      : null;
-  return (
-    <>
-      <div className="field-block">
-        <label className="field-label">{spec.unitsLabel}</label>
-        <SegToggle
-          options={spec.units}
-          labels={spec.unitLabels}
-          value={unit}
-          onChange={(next) => onInputs({ ...inputs, unit: next, waist: null, height: null })}
-        />
-      </div>
-      <div className="field-row">
-        <div className="field-block">
-          <label className="field-label">{spec.waist.label}</label>
-          <NumberField
-            value={inputs.waist ?? null}
-            onChange={(waist) => onInputs({ ...inputs, unit, waist })}
-            min={spec.waist[unit].min}
-            max={spec.waist[unit].max}
-            step={unit === "cm" ? 1 : 0.5}
-            unit={unit}
-            placeholder={spec.waist[unit].placeholder}
-            ariaLabel="Waist measurement"
-          />
-        </div>
-        <div className="field-block">
-          <label className="field-label">{spec.height.label}</label>
-          <NumberField
-            value={inputs.height ?? null}
-            onChange={(height) => onInputs({ ...inputs, unit, height })}
-            min={spec.height[unit].min}
-            max={spec.height[unit].max}
-            step={unit === "cm" ? 1 : 0.5}
-            unit={unit}
-            placeholder={spec.height[unit].placeholder}
-            ariaLabel="Height measurement"
-          />
-        </div>
-      </div>
-      <div className="derived-readout">
-        <span className="dr-label">{spec.ratioLabel}</span>
-        <span className={`dr-value${ratio == null ? " placeholder" : ""}`}>{ratio ?? "0.——"}</span>
-      </div>
-      <p className="field-hint">{spec.hint}</p>
-    </>
-  );
-}
-
-function BpFields({
-  domain,
-  inputs,
-  onInputs,
-}: {
-  domain: Domain;
-  inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-}) {
-  const spec = domain.input as BpInput;
-  const readings = ((inputs.readings as BpReading[] | undefined) || []).slice();
-  while (readings.length < spec.maxReadings) readings.push({});
-  const setReading = (index: number, key: "systolic" | "diastolic", value: number | null) => {
-    const next = readings.map((r, i) => (i === index ? { ...r, [key]: value } : r));
-    onInputs({ ...inputs, readings: next as BpReading[] });
-  };
-  const complete = readings.filter((r) => Number.isFinite(r.systolic) && Number.isFinite(r.diastolic));
-  const sys = complete.length ? Math.round(mean(complete.map((r) => r.systolic))!) : null;
-  const dia = complete.length ? Math.round(mean(complete.map((r) => r.diastolic))!) : null;
-  return (
-    <>
-      {Array.from({ length: spec.maxReadings }).map((_, i) => (
-        <div className="field-block" key={i}>
-          <FieldLabel
-            {...readingLabel(spec.readingLabels, i, "Reading", i >= spec.minReadings ? "optional, recommended" : null)}
-          />
-          <div className="field-row">
-            <NumberField
-              value={readings[i]?.systolic ?? null}
-              onChange={(v) => setReading(i, "systolic", v)}
-              min={spec.systolic.min}
-              max={spec.systolic.max}
-              unit={spec.systolic.unit}
-              placeholder={spec.systolic.placeholder}
-              ariaLabel={`Reading ${i + 1} systolic`}
-            />
-            <NumberField
-              value={readings[i]?.diastolic ?? null}
-              onChange={(v) => setReading(i, "diastolic", v)}
-              min={spec.diastolic.min}
-              max={spec.diastolic.max}
-              unit={spec.diastolic.unit}
-              placeholder={spec.diastolic.placeholder}
-              ariaLabel={`Reading ${i + 1} diastolic`}
-            />
-          </div>
-        </div>
-      ))}
-      <div className="derived-readout">
-        <span className="dr-label">{spec.averageLabel}</span>
-        <span className={`dr-value${sys == null ? " placeholder" : ""}`}>
-          {sys == null ? "———/——" : `${sys}/${dia}`}
-        </span>
-      </div>
-      <p className="field-hint">{spec.hint}</p>
-    </>
-  );
-}
-
-function Who5Fields({
-  domain,
-  inputs,
-  onInputs,
-}: {
-  domain: Domain;
-  inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-}) {
-  const spec = domain.input as Who5Input;
-  const answers = inputs.answers || Array(spec.statements.length).fill(null);
-  const setAnswer = (index: number, value: number) => {
-    const next = [...answers];
-    next[index] = value;
-    onInputs({ ...inputs, answers: next });
-  };
-  const count = spec.scaleMax - spec.scaleMin + 1;
+function ScaleField({ field, value, onChange }: FieldProps) {
+  const options = field.options ?? [];
+  const current = value == null ? null : String(value);
+  const index = options.findIndex((o) => o.key === current);
   // Arrow keys move and select within a statement; Tab moves between statements (roving tabindex).
-  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>, index: number, n: number) => {
-    const moves: Record<string, number> = { ArrowRight: n + 1, ArrowDown: n + 1, ArrowLeft: n - 1, ArrowUp: n - 1, Home: 0, End: count - 1 };
+  const onKey = (e: React.KeyboardEvent<HTMLButtonElement>, n: number) => {
+    const moves: Record<string, number> = { ArrowRight: n + 1, ArrowDown: n + 1, ArrowLeft: n - 1, ArrowUp: n - 1, Home: 0, End: options.length - 1 };
     const target = moves[e.key];
     if (target === undefined) return;
     e.preventDefault();
-    const clamped = Math.min(count - 1, Math.max(0, target));
-    setAnswer(index, clamped);
+    const clamped = Math.min(options.length - 1, Math.max(0, target));
+    onChange(options[clamped].key);
     (e.currentTarget.parentElement?.children[clamped] as HTMLElement | undefined)?.focus();
   };
   return (
-    <>
-      {spec.statements.map((statement, i) => (
-        <div className={`who5-card${Number.isFinite(answers[i]) ? " answered" : ""}`} key={statement}>
-          <p className="statement">
-            <em>0{i + 1}</em>
-            {statement}
-          </p>
-          <div className="scale-dots" role="radiogroup" aria-label={statement}>
-            {Array.from({ length: count }).map((_, n) => (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={answers[i] === n}
-                aria-label={`${n} — ${spec.scaleLabels[n] ?? n}`}
-                tabIndex={answers[i] === n || (!Number.isFinite(answers[i]) && n === 0) ? 0 : -1}
-                className={answers[i] === n ? "selected" : ""}
-                onClick={() => setAnswer(i, n)}
-                onKeyDown={(e) => onKey(e, i, n)}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <div className="scale-caption">
-            <span>{spec.scaleLabels[0]}</span>
-            <span>{spec.scaleLabels[spec.scaleLabels.length - 1]}</span>
-          </div>
-          <p className="who5-selected-label">
-            {Number.isFinite(answers[i]) ? spec.scaleLabels[answers[i] as number] : "\u00a0"}
-          </p>
+    <div className={`who5-card${current !== null ? " answered" : ""}`}>
+      <p className="statement">{field.label}</p>
+      <div className="scale-dots" role="radiogroup" aria-label={field.label}>
+        {options.map((o, n) => (
+          <button
+            key={o.key}
+            type="button"
+            role="radio"
+            aria-checked={current === o.key}
+            aria-label={`${o.key} — ${o.label}`}
+            tabIndex={current === o.key || (current === null && n === 0) ? 0 : -1}
+            className={current === o.key ? "selected" : ""}
+            onClick={() => onChange(o.key)}
+            onKeyDown={(e) => onKey(e, n)}
+          >
+            {o.key}
+          </button>
+        ))}
+      </div>
+      {field.scaleLabels ? (
+        <div className="scale-caption">
+          <span>{field.scaleLabels[0]}</span>
+          <span>{field.scaleLabels[1]}</span>
         </div>
-      ))}
-    </>
+      ) : null}
+      <p className="who5-selected-label">{index >= 0 ? options[index].label : " "}</p>
+    </div>
   );
 }
 
-export function DomainFields({
-  domain,
-  inputs,
-  onInputs,
-  participant,
-}: {
-  domain: Domain;
-  inputs: DomainInputState;
-  onInputs: (next: DomainInputState) => void;
-  participant: Participant;
-}) {
-  switch (domain.inputType) {
-    case "readings":
-      return <ReadingsFields domain={domain} inputs={inputs} onInputs={onInputs} />;
+function ChoiceField({ field, value, onChange }: FieldProps) {
+  const options = field.options ?? [];
+  const current = value == null ? null : String(value);
+  return (
+    <div className="field-block">
+      <FieldLabel label={field.label} opt={field.opt} />
+      <div className="choice-row" role="radiogroup" aria-label={field.label}>
+        {options.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            role="radio"
+            aria-checked={current === o.key}
+            className={`choice${current === o.key ? " selected" : ""}`}
+            onClick={() => onChange(o.key)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {field.hint ? <p className="field-hint">{field.hint}</p> : null}
+    </div>
+  );
+}
+
+function SelectField({ field, value, onChange }: FieldProps) {
+  const id = `field-${field.handle}`;
+  return (
+    <div className="field-block">
+      <FieldLabel label={field.label} opt={field.opt} htmlFor={id} />
+      <select
+        id={id}
+        className="text-input select-input"
+        value={value == null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+      >
+        <option value="">{field.blankLabel ?? "—"}</option>
+        {(field.options ?? []).map((o) => (
+          <option key={o.key} value={o.key}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {field.hint ? <p className="field-hint">{field.hint}</p> : null}
+    </div>
+  );
+}
+
+function ToggleField({ field, value, onChange }: FieldProps) {
+  return (
+    <div className="field-block">
+      <label className="consent-check">
+        <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
+        <span>{field.label}</span>
+      </label>
+      {field.hint ? <p className="field-hint">{field.hint}</p> : null}
+    </div>
+  );
+}
+
+function UnitsField({ field, value, onChange }: FieldProps) {
+  const options = field.options ?? [];
+  const keys = options.map((o) => o.key);
+  const current = value == null ? keys[0] : String(value);
+  return (
+    <div className="field-block">
+      <FieldLabel label={field.label} opt={field.opt} />
+      <SegToggle options={keys} labels={options.map((o) => o.label)} value={current} onChange={onChange} ariaLabel={field.label} />
+    </div>
+  );
+}
+
+function NumberInputField({ field, value, inputs, onChange }: FieldProps) {
+  const range = numberRange(field, inputs);
+  const id = `field-${field.handle}`;
+  const aria = field.opt ? `${field.label} ${field.opt}` : field.label;
+  return (
+    <div className="field-block">
+      <FieldLabel label={field.label} opt={field.opt} htmlFor={id} />
+      <NumberField
+        id={id}
+        value={typeof value === "number" ? value : null}
+        onChange={onChange}
+        min={range.min}
+        max={range.max}
+        step={range.step}
+        unit={range.unit}
+        placeholder={range.placeholder}
+        ariaLabel={aria}
+      />
+      {field.hint ? <p className="field-hint">{field.hint}</p> : null}
+    </div>
+  );
+}
+
+function Field(props: FieldProps) {
+  switch (props.field.kind) {
     case "number":
-      return (
-        <NumberFields domain={domain} inputs={inputs} onInputs={onInputs} participant={participant} />
-      );
-    case "waist-height":
-      return <WaistHeightFields domain={domain} inputs={inputs} onInputs={onInputs} />;
-    case "bp-readings":
-      return <BpFields domain={domain} inputs={inputs} onInputs={onInputs} />;
-    case "who5":
-      return <Who5Fields domain={domain} inputs={inputs} onInputs={onInputs} />;
+      return <NumberInputField {...props} />;
+    case "choice":
+      return <ChoiceField {...props} />;
+    case "select":
+      return <SelectField {...props} />;
+    case "toggle":
+      return <ToggleField {...props} />;
+    case "scale":
+      return <ScaleField {...props} />;
+    case "units":
+      return <UnitsField {...props} />;
     default:
       return null;
   }
 }
 
-export function domainReady(domain: Domain, inputs: DomainInputState, participant: Participant) {
-  return scoreDomain(domain, inputs, participant) != null;
+const WIDTH_CLASS: Record<NonNullable<FieldSpec["width"]>, string> = { half: "w-half", third: "w-third", quarter: "w-quarter" };
+
+/** A protocol's groups of fields, with its readouts (waist ÷ height) under the group they come from. */
+export function DomainFields({
+  protocol,
+  inputs,
+  onInputs,
+}: {
+  protocol: Protocol;
+  inputs: DomainInputState;
+  onInputs: (next: DomainInputState) => void;
+}) {
+  const shown = new Set(visibleFields(protocol, inputs).map((f) => f.handle));
+  const set = (field: FieldSpec, value: FieldValue) => {
+    const next = { ...inputs, [field.handle]: value };
+    // Switching units clears the measurements that were entered in the other unit.
+    if (field.kind === "units") {
+      for (const f of protocol.groups.flatMap((g) => g.fields)) if (f.byUnit) next[f.handle] = null;
+    }
+    onInputs(next);
+  };
+  return (
+    <>
+      {protocol.groups.map((group, gi) => {
+        const fields = group.fields.filter((f) => shown.has(f.handle));
+        if (!fields.length) return null;
+        const last = gi === protocol.groups.length - 1;
+        return (
+          <section className="field-group" key={group.title ?? gi}>
+            {group.title ? <h3 className="field-group-title">{group.title}</h3> : null}
+            {group.note ? <p className="field-group-note">{group.note}</p> : null}
+            <div className="field-grid">
+              {fields.map((field) => (
+                <div key={field.handle} className={field.width ? WIDTH_CLASS[field.width] : "w-full"}>
+                  <Field field={field} value={inputs[field.handle]} inputs={inputs} onChange={(v) => set(field, v)} />
+                </div>
+              ))}
+            </div>
+            {gi === 0 || last
+              ? (protocol.derived ?? []).map((readout) => {
+                  const value = readout.compute(inputs);
+                  if (gi !== 0) return null;
+                  return (
+                    <div key={readout.label}>
+                      <div className="derived-readout">
+                        <span className="dr-label">{readout.label}</span>
+                        <span className={`dr-value${value == null ? " placeholder" : ""}`}>{value ?? readout.placeholder}</span>
+                      </div>
+                      {readout.hint ? <p className="field-hint">{readout.hint}</p> : null}
+                    </div>
+                  );
+                })
+              : null}
+          </section>
+        );
+      })}
+    </>
+  );
 }

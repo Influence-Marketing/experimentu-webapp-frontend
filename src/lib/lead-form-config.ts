@@ -12,6 +12,15 @@ export const leadFormConfig: LeadFormContent = {
     maxLength: 200,
   },
   age: { label: "Age", placeholder: "52" },
+  sex: {
+    label: "Sex",
+    options: [
+      { key: "F", label: "Woman" },
+      { key: "M", label: "Man" },
+      { key: "X", label: "Prefer not to say" },
+    ],
+    note: "HRV, sit-to-stand, grip and body fat ranges differ by sex. “Prefer not to say” leaves those four tests not scored.",
+  },
   fearWord: {
     label: "One word",
     opt: "your biggest health fear",

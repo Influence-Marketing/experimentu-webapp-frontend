@@ -1,19 +1,26 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { buildConfig } from "@/lib/api/mappers";
 import { leadFormConfig } from "@/lib/lead-form-config";
-import { scoringConfig } from "@/lib/scoring-config";
-import type { SiteContent } from "@/lib/types";
+import { protocolsConfig } from "@/lib/protocols";
+import type { ResolvedContent, SiteContent } from "@/lib/types";
 
-const ContentContext = createContext<SiteContent>({
-  config: scoringConfig,
+const fallback: ResolvedContent = {
+  version: protocolsConfig.version,
+  protocolCopy: {},
+  config: protocolsConfig,
   leadForm: leadFormConfig,
   source: "static",
   scoring: null,
-});
+};
 
+const ContentContext = createContext<ResolvedContent>(fallback);
+
+/** Merges the server-loaded CMS copy over the static protocol definitions, rules included. */
 export function ContentProvider({ content, children }: { content: SiteContent; children: React.ReactNode }) {
-  return <ContentContext.Provider value={content}>{children}</ContentContext.Provider>;
+  const value = useMemo<ResolvedContent>(() => ({ ...content, config: buildConfig(protocolsConfig, content.protocolCopy) }), [content]);
+  return <ContentContext.Provider value={value}>{children}</ContentContext.Provider>;
 }
 
 export function useContent() {

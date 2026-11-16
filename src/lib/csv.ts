@@ -1,5 +1,5 @@
-import { scoringConfig } from "./scoring-config";
-import type { Entry, ScoringConfig } from "./types";
+import { protocolsConfig } from "./protocols";
+import type { Entry, ProtocolsConfig } from "./types";
 
 function csvCell(value: unknown) {
   if (value == null) return "";
@@ -7,9 +7,9 @@ function csvCell(value: unknown) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function rosterCsv(entries: Entry[], config: ScoringConfig = scoringConfig) {
-  const metricCols = config.domains.flatMap((d) => [`${d.shortMetric} value`, `${d.shortMetric} points`]);
-  const upgradeCols = config.domains.filter((d) => d.upgrade).map((d) => d.upgrade!.label);
+/** The device's local entries, one row each: the guest, the total and each area's points and readings. */
+export function rosterCsv(entries: Entry[], config: ProtocolsConfig = protocolsConfig) {
+  const areaCols = config.protocols.flatMap((p) => [`${p.shortMetric} points`, `${p.shortMetric} readings`]);
   const header = [
     "id",
     "phase",
@@ -17,22 +17,24 @@ export function rosterCsv(entries: Entry[], config: ScoringConfig = scoringConfi
     "first name",
     "email",
     "age",
+    "sex",
     "fear word",
     "U Score",
-    "quintile",
+    "out of",
+    "word",
     "flags",
-    ...metricCols,
-    ...upgradeCols,
+    ...areaCols,
   ];
   const rows = entries.map((entry) => {
-    const byId = Object.fromEntries(entry.result.domains.map((d) => [d.id, d]));
-    const metrics = config.domains.flatMap((d) => {
-      const scored = byId[d.id] || {};
-      return [scored.value ?? "", scored.points ?? ""];
+    const byKey = Object.fromEntries((entry.result?.areas ?? []).map((a) => [a.key, a]));
+    const areas = config.protocols.flatMap((p) => {
+      const area = byKey[p.id];
+      if (!area) return ["", ""];
+      return [
+        area.points ?? `not scored: ${area.notScored ?? ""}`,
+        area.components.map((c) => `${c.measure} ${c.value} (${c.label})`).join("; "),
+      ];
     });
-    const upgrades = config.domains
-      .filter((d) => d.upgrade)
-      .map((d) => entry.upgrades?.[d.upgrade!.key] ?? "");
     return [
       entry.id,
       entry.phase,
@@ -40,12 +42,13 @@ export function rosterCsv(entries: Entry[], config: ScoringConfig = scoringConfi
       entry.participant.firstName,
       entry.participant.email,
       entry.participant.age,
+      entry.participant.sex,
       entry.participant.fearWord,
-      entry.result.total,
-      entry.result.quintile.name,
-      entry.result.flags.map((f) => f.flagId).join("; "),
-      ...metrics,
-      ...upgrades,
+      entry.result?.total ?? "",
+      entry.result?.outOf ?? "",
+      entry.result?.word ?? "",
+      (entry.result?.flags ?? []).map((f) => f.id).join("; "),
+      ...areas,
     ];
   });
   return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
