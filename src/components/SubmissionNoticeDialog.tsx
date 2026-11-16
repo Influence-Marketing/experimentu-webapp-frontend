@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { RetestRefusal } from "@/lib/api/statamic";
 
 export type SubmissionNotice = {
   /**
    * "already-submitted": this email already did this session (409); the participant can retest.
-   * "retest-not-open": Week-8 Retest picked before it opens (422); nothing to do but wait.
+   * "retest-not-open": Week-8 Retest picked before it opens (422, or the retest check); nothing to do but wait.
+   * "retest-unavailable": the retest check found no baseline or usable link, or couldn't be made.
    * "invalid": the API rejected some answers (422); `details` lists its messages.
    * "failed": the answers couldn't be saved for another reason (network, session, server).
    */
-  kind: "already-submitted" | "retest-not-open" | "invalid" | "failed";
+  kind: "already-submitted" | "retest-not-open" | "retest-unavailable" | "invalid" | "failed";
   message: string;
   submissionDate: string | null;
   retestDate: string | null;
@@ -34,6 +36,14 @@ const COPY: Record<SubmissionNotice["kind"], { kicker: string; heading: React.Re
       </>
     ),
   },
+  "retest-unavailable": {
+    kicker: "Week-8 retest",
+    heading: (
+      <>
+        We can&apos;t <em>open</em> your retest.
+      </>
+    ),
+  },
   invalid: {
     kicker: "Check your answers",
     heading: (
@@ -51,6 +61,16 @@ const COPY: Record<SubmissionNotice["kind"], { kicker: string; heading: React.Re
     ),
   },
 };
+
+/** A Week-8 retest check that didn't clear, as this dialog shows it. */
+export function retestNotice(refusal: RetestRefusal): SubmissionNotice {
+  return {
+    kind: refusal.reason === "not-open" ? "retest-not-open" : "retest-unavailable",
+    message: refusal.message,
+    submissionDate: refusal.baselineDate,
+    retestDate: refusal.retestDate,
+  };
+}
 
 const DAY_MS = 86_400_000;
 
@@ -83,14 +103,11 @@ function daysUntil(iso: string | null) {
 export function SubmissionNoticeDialog({
   notice,
   onClose,
-  onRetest,
   onContinue,
 }: {
   notice: SubmissionNotice | null;
   onClose: () => void;
-  /** Resubmits with retest_confirmed; offered only for "already-submitted". */
-  onRetest?: () => void;
-  /** Carries on with the token this browser already holds; offered only for "already-submitted". */
+  /** Retests: resubmits with retest_confirmed and carries on. Offered only for "already-submitted". */
   onContinue?: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -110,7 +127,6 @@ export function SubmissionNoticeDialog({
   const submitted = notice ? formatDay(notice.submissionDate) : null;
   const retest = notice ? formatDay(notice.retestDate) : null;
   const daysLeft = notice ? daysUntil(notice.retestDate) : null;
-  const canRetest = notice?.kind === "already-submitted" && onRetest != null;
   const canContinue = notice?.kind === "already-submitted" && onContinue != null;
 
   return (
@@ -159,36 +175,21 @@ export function SubmissionNoticeDialog({
               ) : null}
             </div>
           ) : null}
-          {canRetest || canContinue ? (
+          {canContinue ? (
             <div className="notice-actions">
               <button type="button" className="back-link" onClick={close}>
                 Close
               </button>
-              {canRetest ? (
-                <button
-                  type="button"
-                  // With Continue on offer, carrying on is the main action and retesting the alternative.
-                  className={canContinue ? "ghost-btn" : "primary-btn"}
-                  onClick={() => {
-                    close();
-                    onRetest?.();
-                  }}
-                >
-                  Retest
-                </button>
-              ) : null}
-              {canContinue ? (
-                <button
-                  type="button"
-                  className="primary-btn"
-                  onClick={() => {
-                    close();
-                    onContinue?.();
-                  }}
-                >
-                  Continue
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => {
+                  close();
+                  onContinue?.();
+                }}
+              >
+                Continue
+              </button>
             </div>
           ) : (
             <button type="button" className="primary-btn" onClick={close}>

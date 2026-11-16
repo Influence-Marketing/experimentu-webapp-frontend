@@ -20,6 +20,14 @@ export type StatamicField = {
   if?: Record<string, string>;
 };
 
+/** An entry of the `pages` collection; `content` is the CMS's rich-text HTML. */
+export type StatamicPage = {
+  id: string;
+  title: string;
+  slug: string;
+  content: string | null;
+};
+
 export type StatamicForm = {
   handle: string;
   title: string;
@@ -52,6 +60,8 @@ export type LeadSubmissionPayload = {
   data_consent: 0 | 1;
   /** Resend after a 409 "already submitted" answer to submit anyway. */
   retest_confirmed?: boolean;
+  /** Google reCAPTCHA v2 token from the lead form's robot check. */
+  recaptcha_token?: string;
   /** The signed link from the report email; required for a Week-8 Retest. */
   retest_token?: string;
   utm_source?: string;
@@ -70,19 +80,25 @@ export type ProtocolSubmissionValues = Record<string, string | number | boolean 
 /** lead_form's answer when this participant already has a submission; dates are YYYY-MM-DD. */
 export type AlreadySubmitted = { submissionDate: string | null; retestDate: string | null };
 
-/** GET api/retest/{token}: who the link belongs to and their baseline (no full email). */
-export type ApiRetestLink = {
-  valid: boolean;
-  phase: "week8";
-  participant: { first_name: string; masked_email: string; age: number };
-  baseline: { session_id: string; completed_at: string | null; total: number | null; cohort: string | null; config_version: string };
-  expires_at: string;
-};
-
 export type ApiFearWallWord = { word: string; weight: number };
 
 /** GET api/fear-wall?event=: approved words only, never a name. */
 export type ApiFearWall = { event: string | null; count: number; words: ApiFearWallWord[]; generated_at: string };
+
+/**
+ * GET api/participants/{id}/report/{phase}: the sealed report PDF, itself encrypted with `password`
+ * (first 4 letters of the first name in capitals + age). Older builds send `phase`, newer `session`.
+ */
+export type ApiSealedReport = {
+  participant_id: number;
+  session?: "baseline" | "week8";
+  phase?: "baseline" | "week8";
+  filename: string;
+  password: string;
+  password_hint: string;
+  content_type: string;
+  pdf_base64: string;
+};
 
 export type ApiDomainKey = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
 
@@ -144,6 +160,17 @@ export type ApiRecorded = {
   paragraph: string | null;
 };
 
+export type ApiMembership = {
+  mode: string | null;
+  eyebrow: string | null;
+  headline: string | null;
+  body: string | null;
+  bullets: string[] | null;
+  button: string | null;
+  url: string | null;
+  price_note: string | null;
+};
+
 /** One session (Baseline or Week-8 Retest) of GET api/participants/{id}/score, scoring schema 2. */
 export type ApiSessionScore = {
   date: string | null;
@@ -163,16 +190,7 @@ export type ApiSessionScore = {
   flags: ApiFlag[];
   flags_framing: string | null;
   recorded: ApiRecorded[];
-  membership: {
-    mode: string | null;
-    eyebrow: string | null;
-    headline: string | null;
-    body: string | null;
-    bullets: string[] | null;
-    button: string | null;
-    url: string | null;
-    price_note: string | null;
-  };
+  membership: ApiMembership;
   disclaimer: string | null;
   config_version: string;
   derived: Record<string, unknown>;
@@ -191,7 +209,48 @@ export type ApiParticipantScore = {
     baseline_cohort: string | null;
     current_cohort: string | null;
   } | null;
+  copy?: {
+    domains_heading?: string | null;
+    levers_heading?: string | null;
+    report_button?: string | null;
+    not_medical_notice?: string | null;
+  };
 };
+
+/**
+ * GET api/retest/{tokenOrEmail} for a guest with a baseline: when their Week-8 retest opens. A retest
+ * link (not an email) also says whose it is, so the intake can be prefilled from it.
+ */
+export type ApiRetest = {
+  valid: true;
+  message: string;
+  phase: "week8";
+  baseline_completed_at: string | null;
+  retest_starts_at: string | null;
+  participant?: { first_name: string; masked_email: string; email?: string | null; age: number | null };
+  baseline?: {
+    session_id: string | number;
+    completed_at: string | null;
+    total: number | null;
+    cohort: string | null;
+    config_version: string | null;
+  };
+  expires_at?: string;
+};
+
+/**
+ * Why a Week-8 retest can't start now: it opens later ("not-open", with the days as YYYY-MM-DD), the
+ * API found no baseline or usable link ("refused"), or it couldn't be asked ("unreachable").
+ */
+export type RetestRefusal = {
+  ok: false;
+  reason: "not-open" | "refused" | "unreachable";
+  message: string;
+  baselineDate: string | null;
+  retestDate: string | null;
+};
+
+export type RetestCheck = { ok: true; retest: ApiRetest } | RetestRefusal;
 
 export type SubmitResult =
   | { ok: true; token: string | null; participantId: number | null }
@@ -207,7 +266,7 @@ export type SubmitResult =
       retestNotOpen?: { retestDate: string };
     };
 
-// `{{base_url}}` from the API list, e.g. http://127.0.0.1:8010/
+// `{{base_url}}` from the API list, e.g. https://experimentu-webapp-backend-vhg0puhq.on-forge.com/
 const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export const LEAD_FORM = "lead_form";
@@ -220,8 +279,12 @@ export const endpoints = {
   formSubmission: (handle: string) => `api/form/${encodeURIComponent(handle)}/submission`,
   scoringConfig: "api/scoring-config",
   participantScore: (id: number) => `api/participants/${id}/score`,
-  retestLink: (token: string) => `api/retest/${encodeURIComponent(token)}`,
+  participantReport: (id: number, phase: "baseline" | "week8") => `api/participants/${id}/report/${phase}`,
+  // A retest link's token, or the email a Week-8 retest was typed in with.
+  retest: (tokenOrEmail: string) => `api/retest/${encodeURIComponent(tokenOrEmail)}`,
   fearWall: (event: string) => `api/fear-wall${event ? `?event=${encodeURIComponent(event)}` : ""}`,
+  // Honesty & Privacy, Terms and Conditions, Health Data Collection, …
+  pages: "api/collections/pages/entries",
 };
 
 export function apiConfigured() {
@@ -274,6 +337,79 @@ export async function getParticipantScore(participantId: number, token: string):
 }
 
 /**
+ * GET api/participants/{id}/report/{phase} from the browser with the lead token. The API's own
+ * message when there's no report or the token doesn't fit (401/403/404), a generic one otherwise.
+ */
+export async function getSealedReport(
+  participantId: number,
+  phase: "baseline" | "week8",
+  token: string,
+): Promise<{ ok: true; report: ApiSealedReport } | { ok: false; message: string }> {
+  if (!apiConfigured()) return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
+  try {
+    const res = await fetch(apiUrl(endpoints.participantReport(participantId, phase)), {
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      // The PDF comes inline as base64, so this answer is larger and slower than the others.
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = (await res.json().catch(() => null)) as (ApiSealedReport & { message?: string }) | null;
+    if (res.ok && body?.pdf_base64 && body.password) return { ok: true, report: body };
+    if ([401, 403, 404].includes(res.status) && body?.message) return { ok: false, message: body.message };
+    return { ok: false, message: "We couldn't open your sealed report. Please try again in a moment." };
+  } catch {
+    return { ok: false, message: "We couldn't reach the server. Check your connection and try again." };
+  }
+}
+
+// The API's ISO timestamps as the YYYY-MM-DD days the notice dialog shows.
+const isoDay = (iso: string | null) => {
+  const time = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(time) ? null : new Date(time).toISOString().slice(0, 10);
+};
+
+/**
+ * GET api/retest/{tokenOrEmail} from the browser: whether this guest's Week-8 retest can start now.
+ * It can't when the API finds no baseline or usable link (`valid: false`, with a message meant for
+ * the guest), or when `retest_starts_at` is still ahead.
+ */
+export async function checkRetest(tokenOrEmail: string): Promise<RetestCheck> {
+  const refused = (reason: RetestRefusal["reason"], message: string): RetestRefusal => ({
+    ok: false,
+    reason,
+    message,
+    baselineDate: null,
+    retestDate: null,
+  });
+  if (!apiConfigured()) return refused("unreachable", "The API isn't configured (NEXT_PUBLIC_API_BASE_URL).");
+  try {
+    const res = await fetch(apiUrl(endpoints.retest(tokenOrEmail.trim())), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as (ApiRetest | { valid: false; message?: string }) | null;
+    if (res.ok && body?.valid) {
+      const opensAt = body.retest_starts_at ? Date.parse(body.retest_starts_at) : NaN;
+      if (Number.isNaN(opensAt) || opensAt <= Date.now()) return { ok: true, retest: body };
+      return {
+        ok: false,
+        reason: "not-open",
+        message: body.message,
+        baselineDate: isoDay(body.baseline_completed_at),
+        retestDate: isoDay(body.retest_starts_at),
+      };
+    }
+    // 404 (no baseline, unknown or expired link) and 410 (link already used) carry a message meant for
+    // the guest; any other failure's message is a server error, which isn't.
+    if ((res.status === 404 || res.status === 410) && body?.message) return refused("refused", body.message);
+    return refused("unreachable", "We couldn't check your Week-8 retest. Please try again in a moment.");
+  } catch {
+    return refused("unreachable", "We couldn't reach the server. Check your connection and try again.");
+  }
+}
+
+/**
  * GET api/form/{handle}/submission from the browser with the lead token: what this participant
  * already submitted to that form in the token's session. Null when there is none or it can't be had.
  */
@@ -290,23 +426,6 @@ export async function getFormSubmission(handle: string, token: string): Promise<
     return body.submission?.values ?? null;
   } catch {
     return null;
-  }
-}
-
-/** GET api/retest/{token} from the browser: the guest behind a retest link, or why it will not open. */
-export async function getRetestLink(token: string): Promise<{ ok: true; data: ApiRetestLink } | { ok: false; status: number; message: string }> {
-  if (!apiConfigured()) return { ok: false, status: 0, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
-  try {
-    const res = await fetch(apiUrl(endpoints.retestLink(token)), {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    });
-    const body = (await res.json().catch(() => null)) as (ApiRetestLink & { message?: string }) | null;
-    if (res.ok && body?.valid) return { ok: true, data: body };
-    return { ok: false, status: res.status, message: body?.message ?? "This retest link is invalid or has expired." };
-  } catch {
-    return { ok: false, status: 0, message: "We couldn't reach the server. Check your connection and try again." };
   }
 }
 
@@ -426,4 +545,26 @@ export async function submitForm(
     return { ok: false, message: "Too many attempts. Please wait a minute and try again.", fieldErrors: {} };
   }
   return { ok: false, message: "We couldn't save your answers. Please try again.", fieldErrors: {} };
+}
+
+let pagesRequest: Promise<StatamicPage[] | null> | null = null;
+
+/**
+ * GET {{base_url}}api/collections/pages/entries from the browser, once per page load and shared by
+ * every caller; null when it can't be had, and a failed request is tried again on the next call.
+ */
+export function getPages(): Promise<StatamicPage[] | null> {
+  if (!apiConfigured()) return Promise.resolve(null);
+  pagesRequest ??= fetch(apiUrl(endpoints.pages), {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(10_000),
+  })
+    .then((res) => (res.ok ? (res.json() as Promise<{ data?: StatamicPage[] }>) : null))
+    .then((body) => body?.data ?? null)
+    .catch(() => null)
+    .then((pages) => {
+      if (!pages) pagesRequest = null;
+      return pages;
+    });
+  return pagesRequest;
 }

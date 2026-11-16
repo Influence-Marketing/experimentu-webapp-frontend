@@ -1,27 +1,22 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
+import { LEGAL_PAGES, PageDialog, type LegalPageSlug } from "./PageDialog";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { config, scoring } = useContent();
   const { flow, reset } = useFlow();
-  const protocolIndex = config.protocols.findIndex((d) => pathname === `/protocol/${d.id}`);
+  const [openPage, setOpenPage] = useState<LegalPageSlug | null>(null);
+  const protocolIndex = config.protocols.findIndex((_, i) => pathname === `/protocol/${i + 1}`);
   const isProtocol = protocolIndex >= 0;
-  const isAdmin = pathname.startsWith("/admin");
 
   const meta = (() => {
-    if (isAdmin) {
-      return (
-        <>
-          Roster · <b>Local device</b>
-        </>
-      );
-    }
     if (pathname === "/") {
       return (
         <>
@@ -37,10 +32,31 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         </>
       );
     }
-    if (pathname.startsWith("/score")) {
+    if (pathname === "/result") {
       return (
         <>
           Result · <b>{flow.participant.phase === "week8" ? "Week-8 retest" : "Baseline"}</b>
+        </>
+      );
+    }
+    if (pathname.startsWith("/retest")) {
+      return (
+        <>
+          Week-8 · <b>Retest</b>
+        </>
+      );
+    }
+    if (pathname === "/wall") {
+      return (
+        <>
+          Fear wall · <b>Anonymous</b>
+        </>
+      );
+    }
+    if (pathname === "/privacy") {
+      return (
+        <>
+          Privacy · <b>Honesty</b>
         </>
       );
     }
@@ -85,26 +101,21 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <span className="header-meta">{meta}</span>
         )}
       </header>
-      <main className={`app-main${wide || isAdmin ? " wide" : ""}`}>{children}</main>
+      <main className={`app-main${wide ? " wide" : ""}`}>{children}</main>
       <footer className="app-footer no-print">
-        {!isAdmin ? (
-          <Link href="/admin">Admin roster</Link>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              reset();
-              router.push("/");
-            }}
-          >
-            Back to intake
-          </button>
-        )}
-        <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
+        {LEGAL_PAGES.map((page) => (
+          <Fragment key={page.slug}>
+            <button type="button" onClick={() => setOpenPage(page.slug)}>
+              {page.label}
+            </button>
+            <span style={{ margin: "0 10px", color: "var(--dim)" }}>·</span>
+          </Fragment>
+        ))}
         <span>
           Scoring config v{scoring?.version ?? config.version} — a wellness index, not a medical device
         </span>
       </footer>
+      <PageDialog slug={openPage} onClose={() => setOpenPage(null)} />
     </div>
   );
 }

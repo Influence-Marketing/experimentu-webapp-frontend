@@ -4,13 +4,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   eslint: { ignoreDuringBuilds: true },
-  async rewrites() {
-    return {
-      beforeFiles: [
-        { source: "/_gate", destination: "/gate" },
-        { source: "/__gate", destination: "/api/gate" },
-      ],
-    };
+  async redirects() {
+    // /score was renamed /result; old links and saved resume paths still land.
+    return [{ source: "/score", destination: "/result", permanent: false }];
   },
 };
 

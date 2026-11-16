@@ -1,10 +1,38 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { downloadReportPdf } from "@/lib/report-pdf";
 import type { Entry } from "@/lib/types";
 import { FlagCard } from "./ScoreReveal";
 
+/** "U-Score-Maya-2026-10-29.pdf", dated the day the measurements were taken. */
+function pdfFileName(entry: Entry) {
+  const created = new Date(entry.createdAt);
+  const day = [created.getFullYear(), created.getMonth() + 1, created.getDate()]
+    .map((n) => String(n).padStart(2, "0"))
+    .join("-");
+  const name = entry.participant.firstName.trim().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  return `U-Score-${name || "report"}-${day}.pdf`;
+}
+
 export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => void }) {
+  const sheet = useRef<HTMLDivElement>(null);
+  const [savingPdf, setSavingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const { result, participant, phase } = entry;
+
+  const downloadPdf = async () => {
+    if (!sheet.current) return;
+    setSavingPdf(true);
+    setPdfError(null);
+    try {
+      await downloadReportPdf(sheet.current, pdfFileName(entry));
+    } catch {
+      setPdfError("We couldn't create the PDF. Use Print report and choose Save as PDF instead.");
+    } finally {
+      setSavingPdf(false);
+    }
+  };
   const subtitle = [
     phase === "week8" ? "Week-8 retest" : "Baseline",
     participant.age != null ? `Age ${participant.age}` : null,
@@ -41,7 +69,7 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
 
   return (
     <div>
-      <div className="report-sheet rise" style={{ "--i": 0 }}>
+      <div ref={sheet} className="report-sheet rise" style={{ "--i": 0 }}>
         <div className="report-masthead">
           <span className="rm-brand">Experiment U™ · Personal Health Report</span>
           <span className="rm-date">{date}</span>
@@ -135,7 +163,15 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
         <button type="button" className="ghost-btn" style={{ flex: 1 }} onClick={() => window.print()}>
           Print report
         </button>
+        <button type="button" className="ghost-btn" style={{ flex: 1 }} disabled={savingPdf} onClick={downloadPdf}>
+          {savingPdf ? "Preparing PDF…" : "Download PDF"}
+        </button>
       </div>
+      {pdfError ? (
+        <p className="form-error no-print" role="alert">
+          {pdfError}
+        </p>
+      ) : null}
     </div>
   );
 }

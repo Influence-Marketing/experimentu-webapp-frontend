@@ -20,7 +20,7 @@ export default function ScorePage() {
   const [failed, setFailed] = useState(false);
   const started = useRef(false);
 
-  // Protocols submitted since the last intake, so /score can be opened before all five are done.
+  // Protocols submitted since the last intake, so /result can be opened before all five are done.
   const lead = flow.submissions[LEAD_FORM];
   const inSession =
     lead != null && config.protocols.some((p) => (flow.submissions[p.form.handle]?.submittedAt ?? "") > lead.submittedAt);

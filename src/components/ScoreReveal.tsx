@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AreaScore, Entry, Flag, ScoreResult } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
+import { ReportSentDialog } from "./ReportSentDialog";
 
 function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
@@ -82,6 +83,7 @@ export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } 
   const [display, setDisplay] = useState(0);
   const [barsDrawn, setBarsDrawn] = useState(false);
   const frame = useRef<number | null>(null);
+  const [reportSent, setReportSent] = useState(false);
   const colors = Object.fromEntries(config.protocols.map((p) => [p.id, p.color]));
   const sameScale = result.baselineOutOf !== null && result.baselineOutOf === result.outOf;
   const delta = result.deltaTotal;
@@ -243,12 +245,13 @@ export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } 
           style={{ flex: 1 }}
           onClick={() => {
             setCurrentEntryId(entry.id);
-            router.push("/report");
+            setReportSent(true);
           }}
         >
           View your sealed report
         </button>
       </div>
+      <ReportSentDialog email={participant.email} open={reportSent} onClose={() => setReportSent(false)} />
       {result.disclaimer ? (
         <p className="honesty rise" style={{ "--i": 11 }}>
           {result.disclaimer}

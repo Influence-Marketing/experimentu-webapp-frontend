@@ -43,13 +43,24 @@ type FlowContextValue = {
 
 const FlowContext = createContext<FlowContextValue | null>(null);
 
-// Step pages a session can be resumed on; /report/{id} is the admin's view, not a step.
-const isStepPath = (path: string) => path.startsWith("/protocol/") || path === "/score" || path === "/report";
+// Step pages a session can be resumed on. /score and /report are older paths a saved flow may
+// still hold; both now redirect to /result and /report/{token}.
+const isStepPath = (path: string) =>
+  path.startsWith("/protocol/") ||
+  path === "/result" ||
+  path.startsWith("/report/") ||
+  path === "/score" ||
+  path === "/report";
 
 /** A session is in progress from its intake until every protocol has been submitted after it. */
 function inProgress(flow: FlowState, protocols: Protocol[]) {
   const lead = flow.submissions[LEAD_FORM];
   return lead != null && protocols.some((p) => (flow.submissions[p.form.handle]?.submittedAt ?? "") <= lead.submittedAt);
+}
+
+/** Every protocol has been submitted after the intake: whoever opens the intake next is a new guest. */
+function sessionComplete(flow: FlowState, protocols: Protocol[]) {
+  return flow.submissions[LEAD_FORM] != null && !inProgress(flow, protocols);
 }
 
 export function FlowProvider({ children }: { children: React.ReactNode }) {
@@ -61,7 +72,10 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   const [resuming, setResuming] = useState(false);
 
   useEffect(() => {
-    const saved = loadFlow();
+    let saved = loadFlow();
+    // Opening the intake starts a blank form, so no earlier visit's details are filled in. Only the
+    // retest link from the report email prefills it, and a session under way is resumed below.
+    if (pathname === "/" && !inProgress(saved, config.protocols) && saved.retestToken == null) saved = resetStoredFlow();
     setFlow(saved);
     // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
     // load opened on counts, so going back to the intake from Protocol I still works.
@@ -81,6 +95,12 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
     if (pathname === "/" && flow.resumePath) router.replace(flow.resumePath);
     else setResuming(false);
   }, [resuming, pathname, flow.resumePath, router]);
+
+  // Coming back to the intake (e.g. Back from the result) after a finished session also starts afresh.
+  const complete = ready && sessionComplete(flow, config.protocols);
+  useEffect(() => {
+    if (complete && pathname === "/") setFlow(resetStoredFlow());
+  }, [complete, pathname]);
 
   // Remember the step page the guest is on while the session is in progress.
   const active = ready && inProgress(flow, config.protocols);
@@ -108,6 +128,8 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       setFlow((prev) => ({
         ...prev,
         submissions: { ...prev.submissions, [formHandle]: { key, submittedAt: new Date().toISOString() } },
+        // A lead for someone else (e.g. the email was changed) mustn't carry the last guest's readings.
+        ...(lead && lead.participantId !== prev.participantId ? { inputs: {} } : {}),
         authToken: lead ? lead.token : prev.authToken,
         participantId: lead ? lead.participantId : prev.participantId,
         // The retest link is single use: the accepted lead consumed it.

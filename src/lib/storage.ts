@@ -107,11 +107,12 @@ export function wipeDevice() {
   }
 }
 
+export const isEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
 export function intakeComplete(p: Participant) {
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim());
   return (
     p.firstName.trim().length > 0 &&
-    emailOk &&
+    isEmail(p.email) &&
     Number.isFinite(p.age) &&
     (p.age ?? 0) >= 18 &&
     (p.age ?? 0) <= 105 &&

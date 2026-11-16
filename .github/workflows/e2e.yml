@@ -76,7 +76,7 @@ jobs:
         run: |
           npm run build
           npx next start -p 3000 > next.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf http://localhost:3000/gate > /dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/ > /dev/null && break; sleep 1; done
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

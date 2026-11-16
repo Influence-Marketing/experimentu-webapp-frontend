@@ -2,23 +2,16 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { ReportSheet } from "@/components/ReportSheet";
 import { useFlow } from "@/components/FlowProvider";
 
-export default function ReportPage() {
+// Reports live at /report/{token}; the bare path opens the current result's report.
+export default function CurrentReportPage() {
   const router = useRouter();
-  const { ready, currentEntry } = useFlow();
+  const { ready, flow } = useFlow();
 
   useEffect(() => {
-    if (ready && !currentEntry) router.replace("/");
-  }, [ready, currentEntry, router]);
+    if (ready) router.replace(flow.currentEntryId ? `/report/${flow.currentEntryId}` : "/");
+  }, [ready, flow.currentEntryId, router]);
 
-  if (!ready || !currentEntry) return null;
-
-  return (
-    <AppShell>
-      <ReportSheet entry={currentEntry} onBack={() => router.push("/score")} />
-    </AppShell>
-  );
+  return null;
 }
