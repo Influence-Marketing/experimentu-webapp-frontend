@@ -126,7 +126,7 @@ export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } 
   return (
     <div className="reveal-stage">
       <p className="reveal-kicker rise" style={{ "--i": 0 }}>
-        {[participant.firstName, phase === "week8" ? "Week-8 retest" : "Baseline", date].filter(Boolean).join(" · ")}
+        {[participant.firstName, phase === "week8" ? "Retest" : "Baseline", date].filter(Boolean).join(" · ")}
       </p>
       <div className="rise" style={{ "--i": 1 }}>
         <div className="score-ring-xl" style={{ "--ringScore": (display / result.outOf) * 100 }}>
