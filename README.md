@@ -16,6 +16,8 @@ Without a reachable backend the intake and protocol screens still render from th
 
 The intake's robot check is the built-in text captcha unless `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` is set. For automated runs, `NEXT_PUBLIC_CAPTCHA_TEST_CODE` fixes the code (the Playwright suite expects `TEST2`); never set it in production.
 
+The GitHub Action (`.github/workflows/e2e.yml`) runs the Playwright suite against the deployed backend (`https://scoreu-backend.on-forge.com/`, or the repository variable `E2E_API_BASE_URL`), which must be on scoring config 2.0.0 and allow `http://localhost:3000` in its CORS origins. Each run leaves a few `e2e-<timestamp>@example.com` guests there.
+
 ## Routes
 
 | Route | What it is |
