@@ -83,7 +83,7 @@ export function WelcomeHero() {
         </h1>
         <p className="lede rise" style={{ "--i": 2 }}>
           Five measurements. Five minutes. One number that marks where your experiment begins — and what
-          to remeasure in eight weeks.
+          to measure again.
         </p>
       </div>
       <div className="protocol-strip rise" style={{ "--i": 3 }}>
@@ -151,14 +151,14 @@ export function WelcomeForm() {
 
   const week8Hint =
     check?.status === "checking"
-      ? "Checking your Week-8 retest…"
+      ? "Checking your retest…"
       : check?.status === "open"
-        ? "Your Week-8 retest is open."
+        ? "Your retest is open."
         : check?.status === "closed"
-          ? "The Week-8 retest isn't available for this email yet."
+          ? "The retest isn't available for this email yet."
           : check?.status === "unreachable"
-            ? "We couldn't check your Week-8 retest. Leave the email field to try again."
-            : "Enter the email you used for your baseline to check your Week-8 retest.";
+            ? "We couldn't check your retest. Leave the email field to try again."
+            : "Enter the email you used for your baseline to check your retest.";
 
   // Keep the arrival URL's UTM / referrer / event from the first visit, before any navigation drops them.
   useEffect(() => {
@@ -250,7 +250,7 @@ export function WelcomeForm() {
           />
           {viaRetestLink ? (
             <p className="field-hint">
-              Your Week-8 retest is open from your personal link.{p.email ? "" : " Enter the email you used for your baseline."}
+              Your retest is open from your personal link.{p.email ? "" : " Enter the email you used for your baseline."}
             </p>
           ) : p.phase === "week8" ? (
             <p className="field-hint" aria-live="polite">

@@ -3,7 +3,7 @@ import type { LeadFormContent } from "./types";
 // Fallback copy for the intake screen, used when the Statamic lead form can't be fetched.
 // Mirrors resources/blueprints/forms/lead_form.yaml in the backend.
 export const leadFormConfig: LeadFormContent = {
-  session: { label: "Session", baselineLabel: "Baseline", week8Label: "Week-8 retest" },
+  session: { label: "Session", baselineLabel: "Baseline", week8Label: "Retest" },
   firstName: { label: "First name", placeholder: "Jen", maxLength: 100 },
   email: {
     label: "Email",
@@ -13,13 +13,12 @@ export const leadFormConfig: LeadFormContent = {
   },
   age: { label: "Age", placeholder: "52" },
   sex: {
-    label: "Sex",
+    label: "Which ranges should we compare you with?",
     options: [
-      { key: "F", label: "Woman" },
-      { key: "M", label: "Man" },
-      { key: "X", label: "Prefer not to say" },
+      { key: "F", label: "Women’s" },
+      { key: "M", label: "Men’s" },
     ],
-    note: "HRV, sit-to-stand, grip and body fat ranges differ by sex. “Prefer not to say” leaves those four tests not scored.",
+    note: "HRV, sit-to-stand, grip and body fat are compared with ranges for your sex and age, so the calculator needs an answer.",
   },
   fearWord: {
     label: "One word",

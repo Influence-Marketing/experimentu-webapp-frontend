@@ -21,8 +21,8 @@ export default function PrivacyPage() {
         <h2>What you give us</h2>
         <ul>
           <li>
-            <b>Intake:</b> first name, email, age, sex, one word for your biggest health fear, and whether this
-            is your baseline or Week-8 retest.
+            <b>Intake:</b> first name, email, age, which ranges to compare you with (women&apos;s or men&apos;s), one
+            word for your biggest health fear, and whether this is your baseline or your retest.
           </li>
           <li>
             <b>Your five areas:</b> HRV with two sleep questions; sit-to-stand, grip strength and three
@@ -30,8 +30,9 @@ export default function PrivacyPage() {
             the WHO-5 well-being questions and three questions about connection.
           </li>
           <li>
-            <b>Recorded, not scored:</b> resting heart rate (kept for the team, not on your report) and the
-            glucose sensor reading. A station may also record why a test could not be done.
+            <b>Recorded, not scored:</b> resting heart rate and the glucose sensor reading, both kept for the team
+            and not on your report (the glucose sensor is a learning demonstration). A station may also record why
+            a test could not be done.
           </li>
           <li>
             <b>Your choices:</b> consent to collecting this health data (required to take part) and whether
@@ -42,7 +43,7 @@ export default function PrivacyPage() {
         <h2>What we do with it</h2>
         <ul>
           <li>Calculate your U Score™ and show it to you, one area at a time.</li>
-          <li>Email you your sealed report, with a link to your Week-8 retest.</li>
+          <li>Email you your sealed report, with a link to your retest.</li>
           <li>Send promotional emails only if you said yes to them.</li>
           <li>
             Show your one word on the <Link href="/wall">fear wall</Link>, never with your name, and only

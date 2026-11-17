@@ -37,7 +37,7 @@ const COPY: Record<SubmissionNotice["kind"], { kicker: string; heading: React.Re
     ),
   },
   "retest-unavailable": {
-    kicker: "Week-8 retest",
+    kicker: "Your retest",
     heading: (
       <>
         We can&apos;t <em>open</em> your retest.
@@ -164,7 +164,7 @@ export function SubmissionNoticeDialog({
               ) : null}
               {retest ? (
                 <div className="notice-date next">
-                  <span className="nd-label">Week-8 retest</span>
+                  <span className="nd-label">Retest</span>
                   <span className="nd-value">{retest}</span>
                   {daysLeft != null && daysLeft > 0 ? (
                     <span className="nd-meta">

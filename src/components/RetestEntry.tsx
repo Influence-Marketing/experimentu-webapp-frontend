@@ -76,7 +76,7 @@ export function RetestEntry({ token }: { token: string }) {
       <LoadingOverlay show={state.kind === "loading"} label="Checking your retest link" />
       {retest ? (
         <div className="retest-card rise" style={{ "--i": 0 }}>
-          <p className="field-label">Week-8 retest</p>
+          <p className="field-label">Your retest</p>
           <h1>
             Welcome back{guest ? (
               <>
@@ -98,7 +98,7 @@ export function RetestEntry({ token }: { token: string }) {
           </p>
           <div className="btn-row">
             <button type="button" className="primary-btn" onClick={() => router.push("/")}>
-              Start my Week-8 retest
+              Start my retest
             </button>
           </div>
         </div>
