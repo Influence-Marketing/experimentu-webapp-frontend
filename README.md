@@ -12,16 +12,18 @@ npm run dev                  # http://localhost:3000
 
 The backend must be up on the URL in `NEXT_PUBLIC_API_BASE_URL` (`php artisan serve --port=8010` in the backend checkout) with that origin in its `CORS_ALLOWED_ORIGINS`. `.claude/launch.json` starts both.
 
-Without a reachable backend the intake and protocol screens still render from the bundled copy in `src/lib/scoring-config.ts` and `src/lib/lead-form-config.ts`, but nothing can be submitted.
+Without a reachable backend the intake and protocol screens still render from the bundled definitions in `src/lib/protocols.ts` and `src/lib/lead-form-config.ts`, but nothing can be submitted and nothing is scored: the backend is the only scorer (scoring config 2.0.0, the November 2026 U Score).
+
+The intake's robot check is the built-in text captcha unless `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` is set. For automated runs, `NEXT_PUBLIC_CAPTCHA_TEST_CODE` fixes the code (the Playwright suite expects `TEST2`); never set it in production.
 
 ## Routes
 
 | Route | What it is |
 | --- | --- |
-| `/` | Intake: session, first name, email, age, fear word, consents. Posts the lead form and holds the returned Bearer token. |
-| `/protocol/{nervous,movement,metabolism,evidence,recovery}` | The five protocols, each posted to its Statamic form with the token; saved answers are prefilled on return. |
-| `/score` | The reveal, from `GET /api/participants/{id}/score`. |
-| `/report`, `/report/{id}` | The sealed report sheet for the current or a locally kept entry. |
+| `/` | Intake: session, first name, email, age, sex, fear word, consents, robot check. Posts the lead form and holds the returned Bearer token. |
+| `/protocol/1` … `/protocol/5` | The five stations (Nervous System, Movement, Metabolism, Evidence, Mindset), each posted to its Statamic form with the token; saved answers are prefilled on return. Each station's fields, groups and completeness rule are in `src/lib/protocols.ts`; a "not scored because" choice stands in for readings a station cannot take. Old `/protocol/{nervous,…}` links redirect to their number. |
+| `/result` | The reveal, from `GET /api/participants/{id}/score`: the total and its denominator (out of 100, or 80 / 60 with unscored areas), the total word, flags, five area cards with the backend's feedback paragraphs, readings recorded but not scored. `/score` redirects here. |
+| `/report`, `/report/{token}` | The sealed report sheet for the current or a locally kept entry, with print and PDF download. |
 | `/retest?token=…`, `/retest/{token}` | Entry for the Week-8 retest link from the report email, checked with `GET /api/retest/{token}`. When the retest is open it greets the guest, prefills name, email and age, locks the session to Week-8 and sends the token with the lead; otherwise the API's message shows in a dialog. A Week-8 picked on `/` is checked the same way by email (`GET /api/retest/{email}`) when the email field is left, and Begin stays disabled until it's open. |
 | `/wall?event=…` | Venue display of approved fear words (`GET /api/fear-wall`), refreshed every 10 s, sized by frequency, never a name. |
 
