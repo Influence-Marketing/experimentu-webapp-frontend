@@ -109,6 +109,8 @@ export type AreaScore = {
   max: number;
   notScored: string | null;
   paragraph: string | null;
+  /** Lines that show with a flag in this area (snoring, weight loss, the wellbeing check-in). */
+  notes: string[];
   components: ComponentScore[];
   /** Points change since the baseline on a Week-8 result; null when either side was not scored. */
   delta: number | null;
@@ -122,6 +124,8 @@ export type Flag = {
   title: string;
   message: string;
   critical: boolean;
+  /** The guest-facing line for the flag, when it has one; otherwise the card shows the message. */
+  paragraph: string | null;
 };
 
 export type Recorded = {
@@ -159,6 +163,10 @@ export type ScoreResult = {
   /** The total word (Unfolding … Unstoppable); null when an area was not scored. */
   word: string | null;
   overall: string | null;
+  /** Shown in place of the total word when an area was not scored. */
+  totalNotScored: string | null;
+  /** The retest line, under the overall line. */
+  retest: string | null;
   scoreLabel: string | null;
   resultEyebrow: string | null;
   cohortDetail: { name: string; range: string | null; tagline: string | null; body: string | null } | null;

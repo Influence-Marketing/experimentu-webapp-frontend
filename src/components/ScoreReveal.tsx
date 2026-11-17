@@ -19,7 +19,7 @@ export function FlagCard({ flag, style }: { flag: Flag; style?: React.CSSPropert
         <span>●</span> {flag.eyebrow}
       </p>
       {flag.title ? <h3>{flag.title}</h3> : null}
-      {flag.message ? <p>{flag.message.charAt(0).toUpperCase() + flag.message.slice(1)}</p> : null}
+      {flag.paragraph ? <p>{flag.paragraph}</p> : flag.message ? <p>{flag.message.charAt(0).toUpperCase() + flag.message.slice(1)}</p> : null}
     </div>
   );
 }
@@ -53,6 +53,11 @@ export function AreaCard({ area, color, drawn, index, showDelta }: { area: AreaS
       </div>
       {!scored && area.notScored ? <p className="area-not-scored">Not scored — {area.notScored}</p> : null}
       {area.paragraph ? <p className="area-para">{area.paragraph}</p> : null}
+      {area.notes.map((note) => (
+        <p key={note} className="area-para">
+          {note}
+        </p>
+      ))}
       {area.components.length ? (
         <ul className="component-list">
           {area.components.map((c) => (
@@ -154,7 +159,7 @@ export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } 
       ) : null}
       {!result.word ? (
         <p className="reveal-framing rise" style={{ "--i": 3 }}>
-          {unscored} of your five areas {unscored === 1 ? "was" : "were"} not scored today, so there is no total word. Each area below stands on its own.
+          {result.totalNotScored ?? `${unscored} of your five areas ${unscored === 1 ? "was" : "were"} not scored, so your total leaves ${unscored === 1 ? "it" : "them"} out.`}
         </p>
       ) : null}
       {result.cohortDetail?.tagline ? (
@@ -165,6 +170,11 @@ export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } 
       <p className="reveal-framing rise" style={{ "--i": 4 }}>
         {result.overall ?? result.resultEyebrow}
       </p>
+      {entry.phase !== "week8" && result.retest ? (
+        <p className="reveal-framing rise" style={{ "--i": 4 }}>
+          {result.retest}
+        </p>
+      ) : null}
       {entry.phase === "week8" && result.baselineTotal !== null ? (
         sameScale && delta !== null ? (
           <div className={`delta-chip rise${delta < 0 ? " down" : ""}`} style={{ "--i": 4 }}>

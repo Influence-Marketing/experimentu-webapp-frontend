@@ -57,7 +57,7 @@ const protocols: Protocol[] = [
     stepTitle: "The protocol",
     howTo: [
       "Sit quietly for five minutes before the reading, before any breathwork.",
-      "Read HRV from the wrist tracker as RMSSD in milliseconds, and the seated resting heart rate twice.",
+      "Read HRV from the wrist tracker as RMSSD in milliseconds. Record the seated resting heart rate twice; it is not scored.",
       "Answer the two sleep questions about the past month.",
     ],
     form: { handle: "protocol_i_nervous_system" },
@@ -80,8 +80,8 @@ const protocols: Protocol[] = [
               { key: "irregular pulse", label: "Atrial fibrillation or irregular pulse" },
             ],
           },
-          { handle: "rhr_seated_1", kind: "number", label: "Resting heart rate, seated", opt: "reading 1", unit: "bpm", min: 30, max: 220, placeholder: "68", width: "half" },
-          { handle: "rhr_seated_2", kind: "number", label: "Resting heart rate, seated", opt: "reading 2", unit: "bpm", min: 30, max: 220, placeholder: "66", width: "half" },
+          { handle: "rhr_seated_1", kind: "number", label: "Resting heart rate, seated", opt: "reading 1, recorded only", unit: "bpm", min: 30, max: 220, placeholder: "68", width: "half" },
+          { handle: "rhr_seated_2", kind: "number", label: "Resting heart rate, seated", opt: "reading 2, recorded only", unit: "bpm", min: 30, max: 220, placeholder: "66", width: "half" },
         ],
       },
       {
@@ -108,7 +108,7 @@ const protocols: Protocol[] = [
     stepTitle: "The protocol",
     howTo: [
       "Standard chair, arms crossed: count full stands in 30 seconds and lap the timer at the fifth.",
-      "Four grip squeezes on the dynamometer: right, left, right, left. The best one is scored.",
+      "Three grip squeezes on the dynamometer with the dominant hand. The best one is scored.",
       "Answer the three activity questions about a typical week.",
     ],
     form: { handle: "protocol_ii_movement" },
@@ -125,10 +125,9 @@ const protocols: Protocol[] = [
       {
         title: "Grip strength",
         fields: [
-          { handle: "grip_1", kind: "number", label: "Squeeze 1", opt: "right", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "28", width: "quarter" },
-          { handle: "grip_2", kind: "number", label: "Squeeze 2", opt: "left", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "26", width: "quarter" },
-          { handle: "grip_3", kind: "number", label: "Squeeze 3", opt: "right", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "29", width: "quarter" },
-          { handle: "grip_4", kind: "number", label: "Squeeze 4", opt: "left", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "27", width: "quarter" },
+          { handle: "grip_1", kind: "number", label: "Squeeze 1", opt: "dominant hand", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "28", width: "third" },
+          { handle: "grip_2", kind: "number", label: "Squeeze 2", opt: "dominant hand", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "29", width: "third" },
+          { handle: "grip_3", kind: "number", label: "Squeeze 3", opt: "dominant hand", unit: "kg", min: 1, max: 100, step: 0.5, placeholder: "27", width: "third" },
         ],
       },
       {
@@ -159,7 +158,7 @@ const protocols: Protocol[] = [
     complete: (i) =>
       has(i.movement_not_scored) ||
       ((num(i.full_stands_in_30_seconds) !== null || i.used_arms === true) &&
-        [i.grip_1, i.grip_2, i.grip_3, i.grip_4].some((g) => num(g) !== null) &&
+        [i.grip_1, i.grip_2, i.grip_3].some((g) => num(g) !== null) &&
         num(i.activity_days) !== null &&
         num(i.activity_minutes) !== null &&
         num(i.strength_days) !== null),
@@ -176,14 +175,14 @@ const protocols: Protocol[] = [
     stepTitle: "The protocol",
     howTo: [
       "Tape midway between the lowest rib and the top of the hip bone, standing relaxed.",
-      "Height from the start of the day; hip at its widest point (recorded, not scored).",
+      "Height from the start of the day, in the same units as the waist. The hip is not measured.",
       "Answer the three fibre questions about a typical day and week.",
     ],
     form: { handle: "protocol_iii_metabolism" },
     notScored: "metabolism_not_scored",
     groups: [
       {
-        title: "Waist, height and hip",
+        title: "Waist and height",
         fields: [
           {
             handle: "units",
@@ -196,7 +195,6 @@ const protocols: Protocol[] = [
           },
           { handle: "waist_at_navel", kind: "number", label: "Waist", width: "third", byUnit: { in: { min: 18, max: 80, placeholder: "31" }, cm: { min: 45, max: 205, placeholder: "79" } } },
           { handle: "height", kind: "number", label: "Height", width: "third", byUnit: { in: { min: 48, max: 84, placeholder: "65" }, cm: { min: 120, max: 215, placeholder: "165" } } },
-          { handle: "hip", kind: "number", label: "Hip", opt: "recorded", width: "third", byUnit: { in: { min: 18, max: 86, placeholder: "38" }, cm: { min: 45, max: 220, placeholder: "97" } } },
         ],
       },
       {

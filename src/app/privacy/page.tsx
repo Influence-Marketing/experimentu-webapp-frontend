@@ -25,12 +25,12 @@ export default function PrivacyPage() {
             is your baseline or Week-8 retest.
           </li>
           <li>
-            <b>Your five areas:</b> HRV and resting heart rate with two sleep questions; sit-to-stand, grip
-            strength and three activity questions; waist, height and hip with three fibre questions; body fat
-            from the InBody scan; the WHO-5 well-being questions and three questions about connection.
+            <b>Your five areas:</b> HRV with two sleep questions; sit-to-stand, grip strength and three
+            activity questions; waist and height with three fibre questions; body fat from the InBody scan;
+            the WHO-5 well-being questions and three questions about connection.
           </li>
           <li>
-            <b>Recorded, not scored:</b> resting heart rate (when HRV is scored), hip and waist-to-hip, and the
+            <b>Recorded, not scored:</b> resting heart rate (kept for the team, not on your report) and the
             glucose sensor reading. A station may also record why a test could not be done.
           </li>
           <li>
