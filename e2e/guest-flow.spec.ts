@@ -55,11 +55,11 @@ test("baseline happy path scores the session from the backend", async ({ page })
   await expect(next1).toBeEnabled();
   await next1.click();
 
-  // Protocol II: sit-to-stand, four grip squeezes, activity
+  // Protocol II: sit-to-stand, three grip squeezes (dominant hand), activity
   await expect(page).toHaveURL(/\/protocol\/2/);
   await page.getByLabel(/full stands/i).fill("13");
   await page.getByLabel(/first five stands/i).fill("9.4");
-  for (const [n, kg] of [["1", "23"], ["2", "22"], ["3", "24"], ["4", "22"]]) {
+  for (const [n, kg] of [["1", "23"], ["2", "24"], ["3", "22"]]) {
     await page.getByLabel(new RegExp(`^(Grip )?squeeze ${n} `, "i")).fill(kg);
   }
   await page.getByLabel(/days (a week )?of moderate or vigorous/i).fill("3");
@@ -67,12 +67,11 @@ test("baseline happy path scores the session from the backend", async ({ page })
   await page.getByLabel(/days (a week )?of muscle-strengthening/i).fill("0");
   await page.getByRole("button", { name: /continue to protocol iii/i }).click();
 
-  // Protocol III: inches by default; waist, height, hip; fibre
+  // Protocol III: inches by default; waist and height (the hip is not measured); fibre
   await expect(page).toHaveURL(/\/protocol\/3/);
   await expect(page.getByRole("button", { name: /^inches$/i })).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel(/^waist$/i).fill("33");
   await page.getByLabel(/^height$/i).fill("64");
-  await page.getByLabel(/^hip/i).fill("40");
   await expect(page.getByText("0.52")).toBeVisible();
   await page.getByLabel(/whole-grain/i).fill("1");
   await page.getByLabel(/fruit and vegetable/i).fill("3");

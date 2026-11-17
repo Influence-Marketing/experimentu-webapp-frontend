@@ -137,6 +137,8 @@ export type ApiArea = {
   max: number;
   not_scored: string | null;
   paragraph: string | null;
+  /** Lines that show with a flag in this area: the snoring note, the weight-loss note, the wellbeing check-in note. */
+  notes?: string[];
   components: ApiComponent[];
   delta: number | null;
 };
@@ -149,6 +151,8 @@ export type ApiFlag = {
   title: string;
   message: string;
   critical: boolean;
+  /** The guest-facing line for the flag, when it has one of its own. */
+  paragraph?: string | null;
 };
 
 export type ApiRecorded = {
@@ -184,6 +188,10 @@ export type ApiSessionScore = {
   score_label: string | null;
   result_eyebrow: string | null;
   overall: string | null;
+  /** The line under a total that leaves out an area that was not scored; null when all five are scored. */
+  total_not_scored?: string | null;
+  /** The retest line ("when you measure again ..."). */
+  retest?: string | null;
   cohort_detail: { name: string; range: string | null; tagline: string | null; body: string | null } | null;
   cohort_scale: { name: string; min: number; max: number | null; range: string | null; meaning: string | null; current: boolean }[];
   areas: ApiArea[];

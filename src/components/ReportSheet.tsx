@@ -85,7 +85,7 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
           <div className="rs-words">
             <h2>{result.word ?? `${result.total} of ${result.outOf}`}</h2>
             {result.word && result.cohortDetail?.tagline ? <p>{result.cohortDetail.tagline}</p> : null}
-            {!result.word ? <p>An area was not scored today, so the total is out of {result.outOf} and has no word.</p> : null}
+            {!result.word ? <p>{result.totalNotScored ?? `An area was not scored, so the total is out of ${result.outOf} and has no word.`}</p> : null}
             {phase === "week8" && result.baselineTotal !== null ? (
               <p style={{ marginTop: 8 }}>
                 {sameScale && result.deltaTotal !== null
@@ -96,6 +96,7 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
           </div>
         </div>
         {result.overall ? <p className="report-pathline">{result.overall}</p> : null}
+        {phase !== "week8" && result.retest ? <p className="report-pathline">{result.retest}</p> : null}
         {result.cohortDetail?.body ? <p className="report-body">{result.cohortDetail.body}</p> : null}
         {result.flags.map((flag) => (
           <FlagCard key={flag.id} flag={flag} />
@@ -117,6 +118,11 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
             </div>
             {area.notScored ? <p className="report-not-scored">Not scored — {area.notScored}</p> : null}
             {area.paragraph ? <p className="report-para">{area.paragraph}</p> : null}
+            {area.notes.map((note) => (
+              <p key={note} className="report-para">
+                {note}
+              </p>
+            ))}
             {area.components.length ? (
               <table className="report-table">
                 <tbody>
