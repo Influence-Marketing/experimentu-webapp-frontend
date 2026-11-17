@@ -21,12 +21,14 @@ async function fillIntake(page: Page, opts: { email: string; phase?: "baseline" 
   await page.goto("/");
   if (opts.phase === "week8") await page.getByRole("button", { name: /week-8/i }).click();
   await page.getByLabel(/first name/i).fill("Bea");
-  await page.getByLabel(/^email/i).fill(opts.email);
   await page.getByLabel(/age in years/i).fill(String(opts.age ?? 52));
   await page.getByRole("button", { name: /^woman$/i }).click();
   await page.getByLabel(/one word/i).fill("Falling");
   await page.locator(".consent-check").filter({ hasText: /health data/i }).locator("input").check();
   await passCaptcha(page);
+  // Last, because leaving the email field of a Week-8 intake asks the API and the answer opens a
+  // notice dialog; filled earlier, that dialog can land while the clicks above are still going.
+  await page.getByLabel(/^email/i).fill(opts.email);
 }
 
 async function pick(page: Page, statement: RegExp, answer: string) {
