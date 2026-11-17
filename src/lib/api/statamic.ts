@@ -53,6 +53,8 @@ export type LeadSubmissionPayload = {
   first_name: string;
   email: string;
   age: number | null;
+  /** "F", "M" or "X" (prefer not to say): the lead_form sex radio's option keys. */
+  sex?: string;
   one_word: string;
   promotional_email_agreement: 0 | 1;
   data_consent: 0 | 1;
@@ -100,44 +102,66 @@ export type ApiSealedReport = {
 
 export type ApiDomainKey = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
 
-export type ApiMaxBand = { max: number | null; points: number; band: string };
-export type ApiMinBand = { min: number; points: number; band: string };
-export type ApiBpCategory = {
-  id: string;
-  band: string;
-  points: number;
-  rule: { systolicMin?: number; systolicMax?: number; diastolicMin?: number; diastolicMax?: number };
-};
-
-/** GET api/scoring-config (not wrapped in `data`), trimmed to what the score page reads. */
+/** GET api/scoring-config (not wrapped in `data`), trimmed to what the app reads: the version and display copy. */
 export type ApiScoringConfig = {
   version: string;
-  cohorts: { set: string; tiers: { min: number; name: string }[] };
-  domains: {
-    nervous: { label: string; bands: ApiMaxBand[] };
-    movement: {
-      label: string;
-      ageBands: { label: string; minAge: number; maxAge: number; bands: ApiMinBand[] }[];
-    };
-    metabolism: { label: string; bands: ApiMaxBand[] };
-    evidence: { label: string; categories: ApiBpCategory[] };
-    mindset: { label: string; multiplier: number; bands: { min: number; band: string }[] };
-  };
+  schema?: number;
+  nervous_system?: "hrv" | "rhr";
+  cohorts: { set: string; tiers: { min: number; max?: number; name: string; meaning?: string }[] };
+  display?: { scoreLabel?: string; framing?: string; missing?: string; flagsFraming?: string };
+  validation?: Record<string, { min?: number; max?: number }>;
 };
 
-export type ApiDomainScore = {
-  numeral?: string | null;
-  name?: string | null;
-  points: number;
-  max: number;
+/** One scored component of an area (a measured test or a questionnaire), as the backend presents it. */
+export type ApiComponent = {
+  key: string | null;
+  measure: string;
+  value: string;
   band: string | null;
-  value: number | string | null;
-  description?: string | null;
-  percentile: number | null;
+  label: string;
+  points: number | null;
+  max: number;
+  flag: boolean;
+  note: string;
+  questionnaire: boolean;
+  line: string | null;
+  ranges: { band: string; label: string; text: string; points: number }[];
+};
+
+export type ApiArea = {
+  key: ApiDomainKey;
+  numeral: string;
+  name: string;
+  heading: string;
+  points: number | null;
+  max: number;
+  not_scored: string | null;
+  paragraph: string | null;
+  components: ApiComponent[];
+  delta: number | null;
+};
+
+export type ApiFlag = {
+  id: string;
+  domain: ApiDomainKey;
+  severity: string;
+  eyebrow: string;
+  title: string;
+  message: string;
+  critical: boolean;
+};
+
+export type ApiRecorded = {
+  key: string;
+  label: string;
+  value: string;
+  standing: string;
+  note: string;
+  paragraph: string | null;
 };
 
 export type ApiMembership = {
-  mode: string;
+  mode: string | null;
   eyebrow: string | null;
   headline: string | null;
   body: string | null;
@@ -147,36 +171,29 @@ export type ApiMembership = {
   price_note: string | null;
 };
 
-/** One session (Baseline or Week-8 Retest) of GET api/participants/{id}/score. */
+/** One session (Baseline or Week-8 Retest) of GET api/participants/{id}/score, scoring schema 2. */
 export type ApiSessionScore = {
   date: string | null;
   age: number;
   complete: boolean;
   missing: ApiDomainKey[];
   total: number;
-  cohort: string;
-  cohort_detail?: { name: string; range: string | null; tagline: string | null };
-  cohort_scale?: { name: string; min: number; max: number | null; range: string | null; current: boolean }[];
-  result_eyebrow?: string | null;
-  domains: Record<ApiDomainKey, ApiDomainScore>;
-  cohort_card?: { eyebrow: string | null; title: string | null; body: string | null };
-  levers: { numeral?: string | null; domain: ApiDomainKey; label: string; points: number; copy: string }[];
-  levers_footer?: string | null;
-  membership?: ApiMembership | null;
-  disclaimer?: string | null;
-  flags: { id: string; domain: ApiDomainKey; severity: string; title: string; message: string }[];
-  path_to_next: { cohort: string; points_needed: number } | null;
-  derived: {
-    rhr_bpm?: number;
-    age_band?: string;
-    waist_to_height_ratio?: number;
-    systolic?: number;
-    diastolic?: number;
-    bp_category?: string;
-    who5_raw?: number;
-    who5_percent?: number;
-  };
+  out_of: number;
+  cohort: string | null;
+  word: string | null;
+  score_label: string | null;
+  result_eyebrow: string | null;
+  overall: string | null;
+  cohort_detail: { name: string; range: string | null; tagline: string | null; body: string | null } | null;
+  cohort_scale: { name: string; min: number; max: number | null; range: string | null; meaning: string | null; current: boolean }[];
+  areas: ApiArea[];
+  flags: ApiFlag[];
+  flags_framing: string | null;
+  recorded: ApiRecorded[];
+  membership: ApiMembership;
+  disclaimer: string | null;
   config_version: string;
+  derived: Record<string, unknown>;
 };
 
 /** GET api/participants/{id}/score (not wrapped in `data`). */
@@ -186,8 +203,9 @@ export type ApiParticipantScore = {
   baseline: ApiSessionScore | null;
   week_8_retest: ApiSessionScore | null;
   delta_from_baseline: {
-    total: number;
-    domains: Record<ApiDomainKey, number>;
+    total: number | null;
+    out_of?: { current: number; baseline: number };
+    domains: Record<ApiDomainKey, number | null>;
     baseline_cohort: string | null;
     current_cohort: string | null;
   } | null;

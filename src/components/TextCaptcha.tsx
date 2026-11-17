@@ -8,7 +8,11 @@ const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const WIDTH = 140;
 const HEIGHT = 56;
 
+// A fixed code for automated tests (NEXT_PUBLIC_CAPTCHA_TEST_CODE); never set in production.
+const TEST_CODE = (process.env.NEXT_PUBLIC_CAPTCHA_TEST_CODE ?? "").toUpperCase();
+
 function makeCode() {
+  if (TEST_CODE.length === LENGTH) return TEST_CODE;
   const bytes = crypto.getRandomValues(new Uint8Array(LENGTH));
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }

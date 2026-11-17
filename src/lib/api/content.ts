@@ -1,9 +1,10 @@
-// Server-side: loads every GET endpoint and merges it over the static config.
-// Anything that fails to load falls back to the static copy for that piece only.
+// Server-side: loads every GET endpoint into serialisable copy for the client, which merges
+// it over the static protocol definitions (ContentProvider). Anything that fails to load
+// falls back to the static copy for that piece only.
 import { leadFormConfig } from "@/lib/lead-form-config";
-import { scoringConfig } from "@/lib/scoring-config";
+import { protocolsConfig } from "@/lib/protocols";
 import type { SiteContent } from "@/lib/types";
-import { buildConfig, mapLeadForm } from "./mappers";
+import { buildProtocolCopy, mapLeadForm } from "./mappers";
 import {
   apiConfigured,
   getForm,
@@ -14,7 +15,8 @@ import {
 } from "./statamic";
 
 export const staticContent: SiteContent = {
-  config: scoringConfig,
+  version: protocolsConfig.version,
+  protocolCopy: {},
   leadForm: leadFormConfig,
   source: "static",
   scoring: null,
@@ -29,7 +31,13 @@ export async function getSiteContent(): Promise<SiteContent> {
     getScoringConfig(),
   ]);
   const entries = protocols.status === "fulfilled" ? protocols.value : [];
-  const handles = entries.flatMap((e) => (e.form_field ? [e.form_field.handle] : []));
+  // Every protocol form: the handles the CMS entries name, plus the app's own, so labels load either way.
+  const handles = [
+    ...new Set([
+      ...entries.flatMap((e) => (e.form_field ? [e.form_field.handle] : [])),
+      ...protocolsConfig.protocols.map((p) => p.form.handle),
+    ]),
+  ];
   const formResults = await Promise.allSettled(handles.map(getForm));
 
   const forms: Record<string, StatamicForm> = {};
@@ -40,12 +48,13 @@ export async function getSiteContent(): Promise<SiteContent> {
     if (r.status === "rejected") console.warn("[statamic] falling back to static content:", r.reason);
   }
   const apiScoring = scoring.status === "fulfilled" ? scoring.value : null;
-  if (leadForm.status === "rejected" && protocols.status === "rejected") {
+  if (leadForm.status === "rejected" && protocols.status === "rejected" && !Object.keys(forms).length) {
     return { ...staticContent, scoring: apiScoring };
   }
 
   return {
-    config: buildConfig(scoringConfig, entries, forms),
+    version: protocolsConfig.version,
+    protocolCopy: buildProtocolCopy(protocolsConfig, entries, forms),
     leadForm: leadForm.status === "fulfilled" ? mapLeadForm(leadForm.value, leadFormConfig) : leadFormConfig,
     source: "cms",
     scoring: apiScoring,

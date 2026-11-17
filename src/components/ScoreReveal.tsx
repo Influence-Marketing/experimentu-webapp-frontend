@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { hasResult, ordinal } from "@/lib/scoring";
-import type { DomainScore, Entry, ScoreDisplay, ScoringConfig } from "@/lib/types";
+import type { AreaScore, Entry, Flag, ScoreResult } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 import { useFlow } from "./FlowProvider";
 import { ReportSentDialog } from "./ReportSentDialog";
@@ -12,98 +11,83 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/**
- * "67.7 bpm", "14 reps · age band 50–64", "0.109", "120/81 mmHg", "14 / 25 · 56%": a domain's
- * measurement with its unit, preferring the API's unrounded `derived` figures over the scored value.
- */
-function valueLabel(d: DomainScore, config: ScoringConfig, derived: ScoreDisplay["derived"] | undefined) {
-  const domain = config.domains.find((x) => x.id === d.id);
-  const withUnit = (value: number | string) => {
-    if (domain?.inputType === "bp-readings") return `${value} mmHg`;
-    if (domain?.inputType === "who5") return `${value} / 25`;
-    return domain && domain.unit !== "ratio" ? `${value} ${domain.unit}` : String(value);
-  };
-  const bp =
-    derived?.systolic != null && derived.diastolic != null ? `${derived.systolic}/${derived.diastolic}` : null;
-  const precise = {
-    nervous: derived?.rhrBpm,
-    metabolism: derived?.waistToHeight,
-    evidence: bp,
-    recovery: derived?.who5Raw,
-    movement: null,
-  }[d.id];
-  const value = precise ?? d.value;
-  const parts = value != null && value !== "" ? [withUnit(value)] : [];
-  if (d.id === "recovery" && derived?.who5Percent != null) parts.push(`${derived.who5Percent}%`);
-  if (d.id === "movement" && derived?.ageBand) parts.push(`age band ${derived.ageBand.replace("-", "–")}`);
-  return parts.length ? parts.join(" · ") : null;
-}
-
-// The API sends the session date as YYYY-MM-DD; format it in UTC so the day never shifts.
-function formatDay(value: string) {
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  return new Date(day ? `${value}T00:00:00Z` : value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    ...(day ? { timeZone: "UTC" } : {}),
-  });
-}
-
-function FlagCard({
-  flag,
-  style,
-}: {
-  flag: Entry["result"]["flags"][number];
-  style?: React.CSSProperties;
-}) {
-  const kicker =
-    flag.severity === "urgent"
-      ? "Seek care promptly"
-      : flag.severity === "check"
-        ? "One check"
-        : "Talk to your doctor";
+export function FlagCard({ flag, style }: { flag: Flag; style?: React.CSSProperties }) {
+  const soft = flag.severity === "note" || flag.severity === "retake";
   return (
-    <div className={`flag-card rise${flag.severity === "check" ? " check" : ""}`} style={style}>
+    <div className={`flag-card rise${soft ? " check" : ""}${flag.critical ? " critical" : ""}`} style={style}>
       <p className="flag-kicker">
-        <span>●</span> {kicker}
+        <span>●</span> {flag.eyebrow}
       </p>
       {flag.title ? <h3>{flag.title}</h3> : null}
-      {flag.message ? <p>{flag.message}</p> : null}
+      {flag.message ? <p>{flag.message.charAt(0).toUpperCase() + flag.message.slice(1)}</p> : null}
     </div>
   );
 }
 
-export function ScoreReveal({ entry }: { entry: Entry }) {
+/** One area: its points out of 20 (or "not scored"), the paragraph, and each component on a line. */
+export function AreaCard({ area, color, drawn, index, showDelta }: { area: AreaScore; color: string; drawn: boolean; index: number; showDelta: boolean }) {
+  const scored = area.points !== null;
+  return (
+    <div className="area-card" style={{ "--bar-color": `var(--${color}-deep)` }}>
+      <div className="bar-head">
+        <span className="bh-name">
+          <span className="bh-numeral">{area.numeral}</span>
+          {area.name}
+        </span>
+        <span className="bh-pts">
+          {scored ? area.points : "—"}
+          <small>/ {area.max}</small>
+          {showDelta && area.delta !== null ? (
+            <small className={`bh-delta${area.delta < 0 ? " down" : ""}`}>
+              {area.delta >= 0 ? "+" : ""}
+              {area.delta}
+            </small>
+          ) : null}
+        </span>
+      </div>
+      <div className="bar-track">
+        <div
+          className={`bar-fill${drawn ? " drawn" : ""}`}
+          style={{ "--bar-pct": (area.points ?? 0) / area.max, "--bar-delay": `${index * 140}ms` }}
+        />
+      </div>
+      {!scored && area.notScored ? <p className="area-not-scored">Not scored — {area.notScored}</p> : null}
+      {area.paragraph ? <p className="area-para">{area.paragraph}</p> : null}
+      {area.components.length ? (
+        <ul className="component-list">
+          {area.components.map((c) => (
+            <li key={c.measure} className={c.flag ? "flagged" : ""}>
+              <span className="c-measure">{c.measure}</span>
+              <span className="c-value">{c.value}</span>
+              <span className="c-standing">
+                {c.label}
+                {c.line ? <span className="c-line">{c.line}</span> : null}
+                {c.note ? <span className="c-note">{c.note}</span> : null}
+              </span>
+              <span className="c-pts">
+                {c.points === null ? "—" : c.points} / {c.max}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+export function ScoreReveal({ entry }: { entry: Entry & { result: ScoreResult } }) {
   const router = useRouter();
-  const { reset } = useFlow();
+  const { reset, setCurrentEntryId } = useFlow();
+  const { config } = useContent();
   const { result, participant, phase } = entry;
   const [display, setDisplay] = useState(0);
   const [barsDrawn, setBarsDrawn] = useState(false);
-  const [reportSent, setReportSent] = useState(false);
   const frame = useRef<number | null>(null);
-  const { config } = useContent();
-  // Only the scoring API's result reaches this screen: its levers, cohort tiers, next cohort and the
-  // copy it sends with them (`result.display`). Nothing the app works out itself (percentiles, move
-  // suggestions, cohort descriptions) is shown, and any section whose value the API left out (e.g. a
-  // protocol not submitted yet) is hidden. Static copy only stands in for headings and labels.
-  const api = result.display;
-  const delta = api?.delta ?? (entry.baselineTotal != null ? result.total - entry.baselineTotal : null);
-  const scored = result.domains.filter(hasResult);
-  const levers =
-    api?.levers ??
-    (result.leverIds ?? []).flatMap((id) =>
-      scored
-        .filter((d) => d.id === id && d.lever)
-        .map((d) => ({ domainId: d.id, numeral: d.numeral, label: d.name, copy: d.lever, color: d.color })),
-    );
-  const next = result.path?.next ?? null;
-  const gap = result.path?.gap ?? 0;
-  const cohorts = result.cohorts ?? [];
-  const flags = result.flags.filter((f) => f.title || f.message);
-  const card = api?.cohortCard ?? null;
-  const membership = api?.membership ?? null;
-  const cohortLine = [api?.cohortRange, api?.cohortTagline].filter(Boolean).join(" · ");
+  const [reportSent, setReportSent] = useState(false);
+  const colors = Object.fromEntries(config.protocols.map((p) => [p.id, p.color]));
+  const sameScale = result.baselineOutOf !== null && result.baselineOutOf === result.outOf;
+  const delta = result.deltaTotal;
+  const unscored = result.areas.filter((a) => a.points === null).length;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -128,176 +112,120 @@ export function ScoreReveal({ entry }: { entry: Entry }) {
     };
   }, [result.total]);
 
-  const date = formatDay(api?.date ?? entry.createdAt);
+  const date = new Date(entry.createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return (
     <div className="reveal-stage">
       <p className="reveal-kicker rise" style={{ "--i": 0 }}>
-        {[api?.firstName ?? participant.firstName, phase === "week8" ? "Week-8 retest" : "Baseline", date]
-          .filter(Boolean)
-          .join(" · ")}
+        {[participant.firstName, phase === "week8" ? "Week-8 retest" : "Baseline", date].filter(Boolean).join(" · ")}
       </p>
-      {Number.isFinite(result.total) ? (
-        <div className="rise" style={{ "--i": 1 }}>
-          <div className="score-ring-xl" style={{ "--ringScore": display }}>
-            <span className="score-num">{display}</span>
-            <span className="score-of">
-              {config.resultCopy.scoreLabel} / 100
-            </span>
-          </div>
+      <div className="rise" style={{ "--i": 1 }}>
+        <div className="score-ring-xl" style={{ "--ringScore": (display / result.outOf) * 100 }}>
+          <span className="score-num">{display}</span>
+          <span className="score-of">
+            {result.scoreLabel ?? "Your U Score™"} / {result.outOf}
+          </span>
         </div>
-      ) : null}
-      {result.quintile?.name ? (
+      </div>
+      {result.word ? (
         <h1 className="quintile-word rise" style={{ "--i": 2 }}>
-          {result.quintile.name}
+          {result.word}
           <span className="full-stop">.</span>
         </h1>
-      ) : null}
-      {cohortLine ? (
-        <p className="quintile-meaning rise" style={{ "--i": 3 }}>
-          {cohortLine}
-        </p>
-      ) : null}
-      {cohorts.length ? (
+      ) : (
+        <h1 className="quintile-word rise" style={{ "--i": 2 }}>
+          {result.total} of {result.outOf}
+          <span className="full-stop">.</span>
+        </h1>
+      )}
+      {result.word && result.cohortScale.length ? (
         <div className="quintile-scale rise" style={{ "--i": 3 }} aria-label="Where your score lands">
-          {cohorts.map((q) => (
-            <div key={q.name} className={`qs-band${q.name === result.quintile?.name ? " here" : ""}`}>
-              <span className="qs-range">{q.range ?? `${q.min}–${q.max}`}</span>
+          {result.cohortScale.map((q) => (
+            <div key={q.name} className={`qs-band${q.current ? " here" : ""}`}>
+              <span className="qs-range">{q.range ?? `${q.min}–${q.max ?? 100}`}</span>
               <span className="qs-name">{q.name}</span>
             </div>
           ))}
         </div>
       ) : null}
-      <p className="reveal-framing rise" style={{ "--i": 4 }}>
-        {api?.eyebrow ?? config.resultCopy.framing}
-      </p>
-      {delta != null ? (
-        <div className={`delta-chip rise${delta < 0 ? " down" : ""}`} style={{ "--i": 4 }}>
-          {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
-          {delta} since your baseline ({entry.baselineTotal})
-        </div>
-      ) : null}
-      {flags.map((flag, i) => (
-        <FlagCard key={flag.flagId} flag={flag} style={{ "--i": 5 + i }} />
-      ))}
-      {flags.length ? (
-        <p className="flag-framing rise" style={{ "--i": 6 }}>
-          {config.flags.framing}
+      {!result.word ? (
+        <p className="reveal-framing rise" style={{ "--i": 3 }}>
+          {unscored} of your five areas {unscored === 1 ? "was" : "were"} not scored today, so there is no total word. Each area below stands on its own.
         </p>
       ) : null}
-      {scored.length ? (
-        <div className="breakdown rise" style={{ "--i": 6 }}>
-          <p className="breakdown-label">{api?.domainsHeading ?? "Five domains · 20 points each"}</p>
-          {scored.map((d, i) => (
-            <div key={d.id} className="bar-row" style={{ "--bar-color": `var(--${d.color}-deep)` }}>
-              <div className="bar-head">
-                <span className="bh-name">
-                  <span className="bh-numeral">{d.numeral}</span>
-                  {api ? d.name : d.shortMetric}
-                </span>
-                <span className="bh-pts">
-                  {d.points}
-                  <small>/ {d.max}</small>
-                </span>
-              </div>
-              <div className="bar-track">
-                <div
-                  className={`bar-fill${barsDrawn ? " drawn" : ""}`}
-                  style={{
-                    "--bar-pct": (d.points || 0) / d.max,
-                    "--bar-delay": `${i * 140}ms`,
-                  }}
-                />
-              </div>
-              {[d.comparison, api ? valueLabel(d, config, api.derived) : null].some(Boolean) ? (
-                <p className="bar-comparison">
-                  {[d.comparison, api ? valueLabel(d, config, api.derived) : null].filter(Boolean).join(" · ")}
-                </p>
-              ) : null}
-              {d.percentile ? (
-                <span className="standing">
-                  <span className="pct">≈ {ordinal(d.percentile.pct)} percentile</span>
-                  {d.percentile.peerLabel ? <span className="peer">· {d.percentile.peerLabel}</span> : null}
-                </span>
-              ) : null}
-              {d.description ? <p className="bar-comparison">{d.description}</p> : null}
-            </div>
-          ))}
-        </div>
+      {result.cohortDetail?.tagline ? (
+        <p className="quintile-meaning rise" style={{ "--i": 3 }}>
+          {result.cohortDetail.tagline}
+        </p>
       ) : null}
-      {!result.path ? null : next ? (
-        <div className="path-card rise" style={{ "--i": 7 }}>
-          <p className="path-kicker">{card?.eyebrow ?? "Your next cohort"}</p>
-          <h3>
-            {card?.title ?? (
-              <>
-                The path to <em>{next.name}</em>
-              </>
-            )}
-          </h3>
-          <div className="path-gap">
-            <span className="gap-num">+{gap}</span>
-            <span className="gap-words">{gap === 1 ? "point away" : "points away"}</span>
+      <p className="reveal-framing rise" style={{ "--i": 4 }}>
+        {result.overall ?? result.resultEyebrow}
+      </p>
+      {entry.phase === "week8" && result.baselineTotal !== null ? (
+        sameScale && delta !== null ? (
+          <div className={`delta-chip rise${delta < 0 ? " down" : ""}`} style={{ "--i": 4 }}>
+            {delta >= 0 ? "▲" : "▼"} {delta >= 0 ? "+" : ""}
+            {delta} since your baseline ({result.baselineTotal})
           </div>
-          {card?.body ? (
-            <p className="mv-what" style={{ marginTop: 8 }}>
-              {card.body}
+        ) : (
+          <div className="delta-chip rise" style={{ "--i": 4 }}>
+            Baseline {result.baselineTotal} of {result.baselineOutOf} — compare each area below, not the totals.
+          </div>
+        )
+      ) : null}
+      {result.flags.map((flag, i) => (
+        <FlagCard key={flag.id} flag={flag} style={{ "--i": 5 + i }} />
+      ))}
+      {result.flags.length && result.flagsFraming ? (
+        <p className="flag-framing rise" style={{ "--i": 6 }}>
+          {result.flagsFraming}
+        </p>
+      ) : null}
+      <div className="breakdown rise" style={{ "--i": 6 }}>
+        <p className="breakdown-label">Five areas · 20 points each</p>
+        {result.areas.map((area, i) => (
+          <AreaCard key={area.key} area={area} color={colors[area.key] ?? "cranberry"} drawn={barsDrawn} index={i} showDelta={entry.phase === "week8"} />
+        ))}
+      </div>
+      {result.recorded.length ? (
+        <div className="report-extras rise" style={{ "--i": 7 }}>
+          <h4>Also recorded — on your report, not scored</h4>
+          {result.recorded.map((r) => (
+            <p key={r.key}>
+              <b>{r.label}:</b> {r.value} · {r.standing}
+              {r.note ? ` · ${r.note}` : ""}
             </p>
-          ) : null}
-        </div>
-      ) : (
-        <div className="path-card rise" style={{ "--i": 7 }}>
-          <p className="path-kicker">{card?.eyebrow ?? "Your cohort"}</p>
-          <h3>{card?.title ?? config.path.topTitle}</h3>
-          <p className="mv-what" style={{ marginTop: 8 }}>
-            {card?.body ?? config.path.topMessage}
-          </p>
-        </div>
-      )}
-      {levers.length ? (
-        <div className="levers rise" style={{ "--i": 8 }}>
-          <h3>{api?.leversHeading ?? config.resultCopy.leverIntro}</h3>
-          {levers.map((lever) => (
-            <div
-              key={lever.domainId}
-              className="lever-row"
-              style={{ "--lever-color": `var(--${lever.color}-deep)` }}
-            >
-              <span className="ln">{lever.numeral}</span>
-              <p>
-                <b>{lever.label}.</b> {lever.copy}
-              </p>
-            </div>
           ))}
-          <p className="field-hint" style={{ marginTop: 14 }}>
-            {api?.leversFooter ?? config.resultCopy.retestFraming}
-          </p>
         </div>
       ) : null}
-      {membership ? (
-        <div className="membership rise" style={{ "--i": 9 }} data-mode={membership.mode}>
-          {membership.eyebrow ? <p className="m-kicker">{membership.eyebrow}</p> : null}
-          {membership.headline ? <h3>{membership.headline}</h3> : null}
-          {membership.body ? <p>{membership.body}</p> : null}
-          {membership.bullets.length ? (
+      {result.cohortDetail?.body ? (
+        <div className="path-card rise" style={{ "--i": 8 }}>
+          <p className="path-kicker">{result.cohortDetail.name}</p>
+          <p className="mv-what">{result.cohortDetail.body}</p>
+        </div>
+      ) : null}
+      {result.membership.headline ? (
+        <div className="membership rise" style={{ "--i": 9 }}>
+          {result.membership.eyebrow ? <p className="m-kicker">{result.membership.eyebrow}</p> : null}
+          <h3>{result.membership.headline}</h3>
+          {result.membership.body ? <p>{result.membership.body}</p> : null}
+          {result.membership.bullets.length ? (
             <ul>
-              {membership.bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
+              {result.membership.bullets.map((b) => (
+                <li key={b}>{b}</li>
               ))}
             </ul>
           ) : null}
-          {membership.button ? (
-            membership.url ? (
-              <a className="primary-btn" style={{textDecoration:'none'}} href={membership.url} target="_blank" rel="noopener noreferrer">
-                {membership.button}
-              </a>
-            ) : (
-              <button type="button" className="primary-btn" onClick={(e) => e.preventDefault()}>
-                {membership.button}
-              </button>
-            )
+          {result.membership.button ? (
+            <button type="button" className="primary-btn" onClick={(e) => e.preventDefault()}>
+              {result.membership.button}
+            </button>
           ) : null}
-          {membership.priceNote ? <p className="m-price">{membership.priceNote}</p> : null}
+          {result.membership.priceNote ? <p className="m-price">{result.membership.priceNote}</p> : null}
         </div>
       ) : null}
       <div className="btn-row rise no-print" style={{ "--i": 10 }}>
@@ -311,19 +239,24 @@ export function ScoreReveal({ entry }: { entry: Entry }) {
         >
           Done
         </button>
-        <button type="button" className="ghost-btn" style={{ flex: 1 }} onClick={() => setReportSent(true)}>
-          {api?.reportButton ?? "View your sealed report"}
+        <button
+          type="button"
+          className="ghost-btn"
+          style={{ flex: 1 }}
+          onClick={() => {
+            setCurrentEntryId(entry.id);
+            setReportSent(true);
+          }}
+        >
+          View your sealed report
         </button>
       </div>
       <ReportSentDialog email={participant.email} open={reportSent} onClose={() => setReportSent(false)} />
-      {api?.notMedicalNotice ? (
+      {result.disclaimer ? (
         <p className="honesty rise" style={{ "--i": 11 }}>
-          {api.notMedicalNotice}
+          {result.disclaimer}
         </p>
       ) : null}
-      <p className="honesty rise" style={{ "--i": 11 }}>
-        {api?.disclaimer ?? `${config.honesty.footer} ${config.honesty.bpCitation}`}
-      </p>
     </div>
   );
 }

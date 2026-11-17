@@ -1,12 +1,14 @@
 import type { Entry, FlowState, Participant } from "./types";
 
-const ENTRIES_KEY = "u-score-entries-v1";
-const FLOW_KEY = "u-score-flow-v1";
+// Bumped with the November 2026 scoring: the old entries and flows hold prototype inputs and results.
+const ENTRIES_KEY = "u-score-entries-v2";
+const FLOW_KEY = "u-score-flow-v2";
 
 const emptyParticipant = (): Participant => ({
   firstName: "",
   email: "",
   age: null,
+  sex: null,
   fearWord: "",
   phase: "baseline",
   marketingOptIn: false,
@@ -16,7 +18,6 @@ const emptyParticipant = (): Participant => ({
 export const emptyFlow = (): FlowState => ({
   participant: emptyParticipant(),
   inputs: {},
-  upgrades: {},
   currentEntryId: null,
   submissions: {},
   authToken: null,
@@ -77,7 +78,7 @@ export function newId() {
 }
 
 export function loadFlow(): FlowState {
-  // Flows saved by older builds lack newer keys (e.g. submissions); fill them from the defaults.
+  // Flows saved by older builds lack newer keys; fill them from the defaults.
   const empty = emptyFlow();
   const stored = readJson<Partial<FlowState>>(FLOW_KEY, empty);
   return { ...empty, ...stored, participant: { ...empty.participant, ...stored.participant } };
@@ -99,6 +100,8 @@ export function wipeDevice() {
   try {
     localStorage.removeItem(FLOW_KEY);
     localStorage.removeItem(ENTRIES_KEY);
+    localStorage.removeItem("u-score-entries-v1");
+    localStorage.removeItem("u-score-flow-v1");
   } catch {
     // ignore
   }
@@ -113,6 +116,7 @@ export function intakeComplete(p: Participant) {
     Number.isFinite(p.age) &&
     (p.age ?? 0) >= 18 &&
     (p.age ?? 0) <= 105 &&
+    p.sex !== null &&
     p.fearWord.trim().length > 0 &&
     p.dataConsent === true
   );

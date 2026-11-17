@@ -1,10 +1,15 @@
 name: Guest flow end to end
 
-# Boots the Statamic backend (SQLite, log mailer, sync queue) and the Next.js
-# guest site, then runs the Playwright suite in e2e/ against both.
-# The backend lives in its own repository; BACKEND_REPO_TOKEN (a read-only
-# token for Influence-Marketing/experimentu-webapp-backend) is needed only
-# while that repository is private.
+# Builds and starts the Next.js guest site on the runner and runs the Playwright suite in e2e/
+# against it, with the guest site talking to the deployed backend (not a checkout of it: the
+# backend repository is private and the runner has no token for it). Each run creates a few
+# test guests there with e2e-<timestamp>@example.com addresses; the roster should ignore them.
+#
+# The backend must be on scoring config 2.0.0 (EXPU_SCORING_VERSION / EXPU_SCORE_CONTENT_VERSION
+# set on the server) and allow http://localhost:3000 in CORS_ALLOWED_ORIGINS. The preflight step
+# checks the first and says what to change when it is not.
+#
+# Repository variable E2E_API_BASE_URL points the suite at another backend (staging, a preview).
 
 on:
   pull_request:
@@ -15,50 +20,29 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
       E2E_BASE_URL: http://localhost:3000
-      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8010/
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.E2E_API_BASE_URL || 'https://scoreu-backend.on-forge.com/' }}
+      # The built-in TextCaptcha accepts this fixed code, so the suite can pass the intake. Never set in production.
+      NEXT_PUBLIC_CAPTCHA_TEST_CODE: TEST2
     steps:
       - name: Check out the guest site
         uses: actions/checkout@v4
 
-      - name: Check out the backend
-        uses: actions/checkout@v4
-        with:
-          repository: Influence-Marketing/experimentu-webapp-backend
-          path: backend
-          token: ${{ secrets.BACKEND_REPO_TOKEN || github.token }}
-
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.3"
-          extensions: mbstring, intl, pdo_sqlite, gd, zip
-          coverage: none
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Configure and start the backend
-        working-directory: backend
+      - name: Check the backend is reachable and on scoring config 2.0.0
         run: |
-          cp .env.example .env
-          touch database/database.sqlite
-          php artisan key:generate --force
-          php artisan migrate --force
-          php artisan serve --host=127.0.0.1 --port=8010 > backend.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8010/api/scoring-config > /dev/null && break; sleep 1; done
-          curl -sf http://127.0.0.1:8010/api/scoring-config | head -c 200
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ${{ github.workspace }}/backend/database/database.sqlite
-          QUEUE_CONNECTION: sync
-          MAIL_MAILER: log
-          CORS_ALLOWED_ORIGINS: http://localhost:3000
-          STATAMIC_API_ENABLED: "true"
-          STATAMIC_PRO_ENABLED: "true"
+          url="${NEXT_PUBLIC_API_BASE_URL%/}/api/scoring-config"
+          if ! body=$(curl -sf --max-time 30 -H "Accept: application/json" "$url"); then
+            echo "::error title=Backend unreachable::GET $url failed. The suite needs the deployed backend; set the repository variable E2E_API_BASE_URL to point at a reachable one."
+            exit 1
+          fi
+          echo "$body" | head -c 300; echo
+          if ! echo "$body" | grep -q '"schema":2'; then
+            version=$(echo "$body" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+            echo "::error title=Backend not on scoring 2.0.0::$url reports scoring config ${version:-unknown}. The guest site captures the 2.0.0 fields, so the suite cannot run against it. On that server set EXPU_SCORING_VERSION=2.0.0 and EXPU_SCORE_CONTENT_VERSION=2.0.0 (and EXPU_NERVOUS_SYSTEM), run php artisan config:clear, then re-run this job."
+            exit 1
+          fi
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -93,6 +77,4 @@ jobs:
             playwright-report
             test-results
             next.log
-            backend/backend.log
-            backend/storage/logs
           retention-days: 7

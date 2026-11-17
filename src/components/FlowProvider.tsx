@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LEAD_FORM } from "@/lib/api/statamic";
-import { computeResult } from "@/lib/scoring";
 import {
   addEntry,
   emptyFlow,
@@ -15,7 +14,7 @@ import {
   saveFlow,
   updateEntry,
 } from "@/lib/storage";
-import type { Domain, DomainId, DomainInputState, Entry, FlowState, Participant } from "@/lib/types";
+import type { DomainId, DomainInputState, Entry, FlowState, Participant, Protocol } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 
 type FlowContextValue = {
@@ -23,7 +22,6 @@ type FlowContextValue = {
   flow: FlowState;
   setParticipant: (patch: Partial<Participant> | Participant) => void;
   setDomainInputs: (id: DomainId, inputs: DomainInputState) => void;
-  setUpgrade: (key: string, value: number | null) => void;
   /** Records a successful form POST; a lead submission also replaces the bearer token and participant id. */
   markSubmitted: (
     formHandle: string,
@@ -34,6 +32,7 @@ type FlowContextValue = {
   clearAuthToken: () => void;
   /** Holds the token from a /retest link until the Week-8 lead is accepted. */
   setRetestToken: (token: string | null) => void;
+  /** Opens (or reuses) this session's entry; its score arrives from the API on the score page. */
   completeProtocols: () => Entry;
   currentEntry: Entry | null;
   setCurrentEntryId: (id: string | null) => void;
@@ -54,14 +53,14 @@ const isStepPath = (path: string) =>
   path === "/report";
 
 /** A session is in progress from its intake until every protocol has been submitted after it. */
-function inProgress(flow: FlowState, domains: Domain[]) {
+function inProgress(flow: FlowState, protocols: Protocol[]) {
   const lead = flow.submissions[LEAD_FORM];
-  return lead != null && domains.some((d) => (flow.submissions[d.form.handle]?.submittedAt ?? "") <= lead.submittedAt);
+  return lead != null && protocols.some((p) => (flow.submissions[p.form.handle]?.submittedAt ?? "") <= lead.submittedAt);
 }
 
 /** Every protocol has been submitted after the intake: whoever opens the intake next is a new guest. */
-function sessionComplete(flow: FlowState, domains: Domain[]) {
-  return flow.submissions[LEAD_FORM] != null && !inProgress(flow, domains);
+function sessionComplete(flow: FlowState, protocols: Protocol[]) {
+  return flow.submissions[LEAD_FORM] != null && !inProgress(flow, protocols);
 }
 
 export function FlowProvider({ children }: { children: React.ReactNode }) {
@@ -76,11 +75,11 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
     let saved = loadFlow();
     // Opening the intake starts a blank form, so no earlier visit's details are filled in. Only the
     // retest link from the report email prefills it, and a session under way is resumed below.
-    if (pathname === "/" && !inProgress(saved, config.domains) && saved.retestToken == null) saved = resetStoredFlow();
+    if (pathname === "/" && !inProgress(saved, config.protocols) && saved.retestToken == null) saved = resetStoredFlow();
     setFlow(saved);
     // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
     // load opened on counts, so going back to the intake from Protocol I still works.
-    if (pathname === "/" && saved.resumePath && isStepPath(saved.resumePath) && inProgress(saved, config.domains)) {
+    if (pathname === "/" && saved.resumePath && isStepPath(saved.resumePath) && inProgress(saved, config.protocols)) {
       setResuming(true);
     }
     setReady(true);
@@ -98,13 +97,13 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   }, [resuming, pathname, flow.resumePath, router]);
 
   // Coming back to the intake (e.g. Back from the result) after a finished session also starts afresh.
-  const complete = ready && sessionComplete(flow, config.domains);
+  const complete = ready && sessionComplete(flow, config.protocols);
   useEffect(() => {
     if (complete && pathname === "/") setFlow(resetStoredFlow());
   }, [complete, pathname]);
 
   // Remember the step page the guest is on while the session is in progress.
-  const active = ready && inProgress(flow, config.domains);
+  const active = ready && inProgress(flow, config.protocols);
   useEffect(() => {
     if (!active || !isStepPath(pathname)) return;
     setFlow((prev) => (prev.resumePath === pathname ? prev : { ...prev, resumePath: pathname }));
@@ -124,20 +123,13 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const setUpgrade = useCallback((key: string, value: number | null) => {
-    setFlow((prev) => ({
-      ...prev,
-      upgrades: { ...prev.upgrades, [key]: value },
-    }));
-  }, []);
-
   const markSubmitted = useCallback(
     (formHandle: string, key: string, lead?: { token: string | null; participantId: number | null }) => {
       setFlow((prev) => ({
         ...prev,
         submissions: { ...prev.submissions, [formHandle]: { key, submittedAt: new Date().toISOString() } },
         // A lead for someone else (e.g. the email was changed) mustn't carry the last guest's readings.
-        ...(lead && lead.participantId !== prev.participantId ? { inputs: {}, upgrades: {} } : {}),
+        ...(lead && lead.participantId !== prev.participantId ? { inputs: {} } : {}),
         authToken: lead ? lead.token : prev.authToken,
         participantId: lead ? lead.participantId : prev.participantId,
         // The retest link is single use: the accepted lead consumed it.
@@ -160,9 +152,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const completeProtocols = useCallback(() => {
-    const result = computeResult(flow.participant, flow.inputs, config);
-    const baseline =
-      flow.participant.phase === "week8" ? latestBaseline(flow.participant.email) : null;
+    const baseline = flow.participant.phase === "week8" ? latestBaseline(flow.participant.email) : null;
     // Scoring again in the same session (e.g. /score after two protocols, then after all five)
     // updates that session's entry instead of adding another.
     const existing = flow.currentEntryId ? findEntry(flow.currentEntryId) : null;
@@ -174,15 +164,14 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       id: own?.id ?? newId(),
       createdAt: own?.createdAt ?? new Date().toISOString(),
       phase: flow.participant.phase,
-      configVersion: config.version,
+      configVersion: own?.configVersion ?? config.version,
       participant: { ...flow.participant },
       inputs: flow.inputs,
-      upgrades: flow.upgrades,
-      result,
+      result: own?.result ?? null,
       baselineId: baseline ? baseline.id : null,
-      baselineTotal: baseline ? baseline.result.total : null,
+      baselineTotal: baseline?.result ? baseline.result.total : null,
       participantId: flow.participantId,
-      scoreSource: "local",
+      scoreSource: "pending",
     };
     if (own) updateEntry(own.id, created);
     else addEntry(created);
@@ -210,7 +199,6 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       flow,
       setParticipant,
       setDomainInputs,
-      setUpgrade,
       markSubmitted,
       clearAuthToken,
       setRetestToken,
@@ -225,7 +213,6 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       flow,
       setParticipant,
       setDomainInputs,
-      setUpgrade,
       markSubmitted,
       clearAuthToken,
       setRetestToken,

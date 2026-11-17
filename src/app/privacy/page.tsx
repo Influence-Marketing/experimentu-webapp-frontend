@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
-import { scoringConfig } from "@/lib/scoring-config";
 
 export const metadata: Metadata = {
   title: "Privacy & honesty — Experiment U™",
 };
 
+const HONESTY =
+  "The U Score™ is a wellness index, not a clinical instrument or a diagnosis, and never a substitute for medical care. Each area compares one reading, taken once, with published reference ranges: for HRV, sit-to-stand and grip, the middle half of healthy people of the same age and sex; for body fat, ranges based on BMI; for waist-to-height, NICE risk categories. None of these is a personal target.";
+
 // What the site collects and why, and how honest the U Score™ is about itself. Only what the
 // app and its API actually do is described here; the full privacy policy replaces this before launch.
 export default function PrivacyPage() {
-  const { honesty } = scoringConfig;
   return (
     <AppShell>
       <article className="legal rise" style={{ "--i": 0 }}>
@@ -20,16 +21,17 @@ export default function PrivacyPage() {
         <h2>What you give us</h2>
         <ul>
           <li>
-            <b>Intake:</b> first name, email, age, one word for your biggest health fear, and whether this is
-            your baseline or Week-8 retest.
+            <b>Intake:</b> first name, email, age, sex, one word for your biggest health fear, and whether this
+            is your baseline or Week-8 retest.
           </li>
           <li>
-            <b>Your five measurements:</b> resting heart rate, 30-second sit-to-stand, waist and height, blood
-            pressure, and the WHO-5 well-being questions.
+            <b>Your five areas:</b> HRV and resting heart rate with two sleep questions; sit-to-stand, grip
+            strength and three activity questions; waist, height and hip with three fibre questions; body fat
+            from the InBody scan; the WHO-5 well-being questions and three questions about connection.
           </li>
           <li>
-            <b>Optional extras</b>, only if you add them: heart rate variability, grip strength, average glucose
-            and body fat percentage. They are recorded for your report, not scored.
+            <b>Recorded, not scored:</b> resting heart rate (when HRV is scored), hip and waist-to-hip, and the
+            glucose sensor reading. A station may also record why a test could not be done.
           </li>
           <li>
             <b>Your choices:</b> consent to collecting this health data (required to take part) and whether
@@ -39,7 +41,7 @@ export default function PrivacyPage() {
 
         <h2>What we do with it</h2>
         <ul>
-          <li>Calculate your U Score™ and show it to you.</li>
+          <li>Calculate your U Score™ and show it to you, one area at a time.</li>
           <li>Email you your sealed report, with a link to your Week-8 retest.</li>
           <li>Send promotional emails only if you said yes to them.</li>
           <li>
@@ -55,13 +57,13 @@ export default function PrivacyPage() {
         </p>
 
         <h2 id="honesty">How honest the score is</h2>
-        <p>{honesty.footer}</p>
-        <p>{honesty.bpCitation}</p>
-        <p>Each domain shows the category your measurement falls in, rather than a percentile.</p>
-
-        <p className="field-hint">
-          The full privacy policy replaces this page before launch.
+        <p>{HONESTY}</p>
+        <p>
+          An area that could not be measured is shown as not scored and left out of the total. A flag never
+          changes points, and a strong total never cancels a flag.
         </p>
+
+        <p className="field-hint">The full privacy policy replaces this page before launch.</p>
       </article>
     </AppShell>
   );

@@ -1,337 +1,190 @@
 import type { ApiScoringConfig } from "./api/statamic";
 
 export type Phase = "baseline" | "week8";
-export type DomainId =
-  | "nervous"
-  | "movement"
-  | "metabolism"
-  | "evidence"
-  | "recovery";
-export type InputType =
-  | "readings"
-  | "number"
-  | "waist-height"
-  | "bp-readings"
-  | "who5";
+export type DomainId = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
+/** "F" woman, "M" man, "X" prefer not to say (HRV, sit-to-stand, grip and body fat are then not scored). */
+export type Sex = "F" | "M" | "X";
 export type MeasureUnit = "in" | "cm";
 
 export type LabelText = { label: string; opt?: string };
 
-export type Band = {
-  max: number | null;
-  points: number;
+/** What a protocol field holds: a number, a choice key, a toggle, or nothing yet. */
+export type FieldValue = number | string | boolean | null;
+
+/** One protocol's answers, keyed by the Statamic form field handle they are submitted under. */
+export type DomainInputState = Record<string, FieldValue>;
+
+export type FieldOption = { key: string; label: string };
+
+export type UnitRange = { min: number; max: number; placeholder: string };
+
+export type FieldSpec = {
+  /** The blueprint field handle; also the key in DomainInputState and the payload. */
+  handle: string;
+  kind: "number" | "choice" | "select" | "toggle" | "scale" | "units";
   label: string;
-  comparison: string;
-  flag?: string;
+  opt?: string;
+  hint?: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  placeholder?: string;
+  /** choice / select / scale / units */
+  options?: FieldOption[];
+  /** scale: the captions under the first and last option */
+  scaleLabels?: [string, string];
+  /** select: the option shown while nothing applies */
+  blankLabel?: string;
+  width?: "half" | "third" | "quarter";
+  /** number: ranges and unit that follow the protocol's units field */
+  byUnit?: Record<MeasureUnit, UnitRange>;
+  /** Shown only when this returns true (e.g. a reading behind its toggle). */
+  showIf?: (inputs: DomainInputState) => boolean;
 };
 
-export type AgeThreshold = {
-  min: number;
-  points: number;
-  label: string;
-  comparison: string;
-};
+export type FieldGroup = { title?: string; note?: string; fields: FieldSpec[] };
 
-export type AgeBand = {
-  ageMin: number;
-  ageMax: number | null;
+export type DerivedReadout = {
+  /** The blueprint handle the readout is submitted under, when the form stores it. */
+  handle?: string;
   label: string;
-  thresholds: AgeThreshold[];
-};
-
-export type BpCategory = {
-  id: string;
-  label: string;
-  reading: string;
-  points: number;
-  systolicMin: number | null;
-  diastolicMin: number | null;
-  flag?: string;
-  comparison: string;
-};
-
-export type Who5ComparisonBand = {
-  minRaw: number;
-  comparison: string;
-};
-
-export type DomainUpgrade = {
-  key: string;
-  prompt: string;
-  label: string;
-  unit: string;
-  min: number;
-  max: number;
-  note: string;
-};
-
-export type ReadingsInput = {
-  key: string;
-  label: string;
-  readingLabel: string;
-  readingLabels?: LabelText[];
-  averageLabel: string;
-  minReadings: number;
-  maxReadings: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
   placeholder: string;
+  hint?: string;
+  compute: (inputs: DomainInputState) => string | null;
 };
 
-export type NumberInput = {
-  key: string;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  placeholder: string;
-};
-
-export type RangeSpec = {
-  min: number;
-  max: number;
-  placeholder: string;
-};
-
-export type WaistHeightInput = {
-  waistKey: string;
-  heightKey: string;
-  units: MeasureUnit[];
-  unitsLabel: string;
-  unitLabels: string[];
-  defaultUnit: MeasureUnit;
-  waist: { label: string; in: RangeSpec; cm: RangeSpec };
-  height: { label: string; in: RangeSpec; cm: RangeSpec };
-  ratioLabel: string;
-  hint: string;
-};
-
-export type BpInput = {
-  key: string;
-  minReadings: number;
-  maxReadings: number;
-  readingLabels?: LabelText[];
-  averageLabel: string;
-  hint: string;
-  systolic: { label: string; unit: string; min: number; max: number; placeholder: string };
-  diastolic: { label: string; unit: string; min: number; max: number; placeholder: string };
-};
-
-export type Who5Input = {
-  key: string;
-  scaleMin: number;
-  scaleMax: number;
-  scaleLabels: string[];
-  statements: string[];
-};
-
-export type DomainScoring =
-  | { type: "bands"; roundValue: number; derived?: "waistOverHeight"; bands: Band[] }
-  | {
-      type: "age-bands";
-      ageKey: "age";
-      under50Rule: "use-first-band";
-      under50Note: string;
-      ageBands: AgeBand[];
-    }
-  | {
-      type: "bp-category";
-      note: string;
-      citation: string;
-      categories: BpCategory[];
-    }
-  | {
-      type: "who5";
-      multiplier: number;
-      rounding: "half-up";
-      comparisonBands: Who5ComparisonBand[];
-    };
-
-/** Statamic field handles a protocol's inputs are submitted under. */
-export type ProtocolFormFields = {
-  readings?: string[];
-  bp?: Array<{ systolic: string; diastolic: string }>;
-  value?: string;
-  units?: string;
-  /** The radio option key sent for each unit; without it `units` is a toggle (true = cm). */
-  unitOptions?: Partial<Record<MeasureUnit, string>>;
-  waist?: string;
-  height?: string;
-  /** Derived readout: the readings average, BP "sys/dia", or waist ÷ height. */
-  derived?: string;
-  answers?: string[];
-  upgradeToggle?: string;
-  upgrade?: string;
-};
-
-export type ProtocolForm = { handle: string; fields: ProtocolFormFields };
-
-export type Domain = {
+export type Protocol = {
   id: DomainId;
   numeral: string;
   order: number;
   name: string;
+  /** The measured test(s), as the step's heading. */
   metric: string;
   shortMetric: string;
-  unit: string;
   color: string;
   tagline: string;
   stepTitle: string;
   howTo: string[];
-  inputType: InputType;
-  input: ReadingsInput | NumberInput | WaistHeightInput | BpInput | Who5Input;
-  scoring: DomainScoring;
-  lever: string;
-  upgrade: DomainUpgrade | null;
-  form: ProtocolForm;
+  form: { handle: string };
+  groups: FieldGroup[];
+  derived?: DerivedReadout[];
+  /** The handle of this protocol's "not scored because" select, if it has one. */
+  notScored?: string;
+  /** Enough is entered to submit: mirrors the backend's required_without rules. */
+  complete: (inputs: DomainInputState) => boolean;
+  /** Values the app fills in itself on submit (implied toggles, readouts). */
+  derivePayload?: (inputs: DomainInputState) => DomainInputState;
 };
 
-export type Quintile = {
-  min: number;
+export type ProtocolsConfig = {
+  /** The scoring design these screens capture for; the backend's config version is shown from the API. */
+  version: string;
+  protocols: Protocol[];
+};
+
+// ---- The score, as GET api/participants/{id}/score presents it (scoring schema 2) ----
+
+export type ComponentScore = {
+  key: string | null;
+  measure: string;
+  value: string;
+  band: string | null;
+  label: string;
+  points: number | null;
   max: number;
-  name: string;
-  meaning: string;
-  /** Range label from the scoring API's cohort scale, e.g. "55–69". */
-  range?: string;
+  flag: boolean;
+  note: string;
+  questionnaire: boolean;
+  /** The short report line for a questionnaire item. */
+  line: string | null;
 };
 
-export type PercentileResult = {
-  pct: number;
-  source: string;
-  peerLabel: string;
-};
-
-export type DomainScore = {
-  id: DomainId;
+export type AreaScore = {
+  key: DomainId;
   numeral: string;
   name: string;
-  metric: string;
-  shortMetric: string;
-  color: string;
+  heading: string;
+  points: number | null;
   max: number;
-  lever: string;
-  points: number;
-  bandLabel?: string;
-  flag?: string | null;
-  comparison?: string | null;
-  /** The scoring API's sentence about this result, when it sends one. */
-  description?: string | null;
-  value?: number | string;
-  ageBandLabel?: string;
-  note?: string | null;
-  categoryId?: string;
-  categoryLabel?: string;
-  systolic?: number;
-  diastolic?: number;
-  raw?: number;
-  percentile: PercentileResult | null;
+  notScored: string | null;
+  paragraph: string | null;
+  components: ComponentScore[];
+  /** Points change since the baseline on a Week-8 result; null when either side was not scored. */
+  delta: number | null;
 };
 
 export type Flag = {
-  domainId: DomainId;
-  domainName: string;
-  flagId: string;
-  severity: "urgent" | "doctor" | "check";
+  id: string;
+  domain: DomainId;
+  severity: string;
+  eyebrow: string;
   title: string;
   message: string;
+  critical: boolean;
+};
+
+export type Recorded = {
+  key: string;
+  label: string;
+  value: string;
+  standing: string;
+  note: string;
+  paragraph: string | null;
+};
+
+export type CohortTier = {
+  name: string;
+  min: number;
+  max: number | null;
+  range: string | null;
+  meaning: string | null;
+  current: boolean;
+};
+
+export type Membership = {
+  mode: string | null;
+  eyebrow: string | null;
+  headline: string | null;
+  body: string | null;
+  bullets: string[];
+  button: string | null;
+  url: string | null;
+  priceNote: string | null;
 };
 
 export type ScoreResult = {
   total: number;
-  quintile: Quintile;
-  domains: DomainScore[];
+  outOf: number;
+  /** The total word (Unfolding … Unstoppable); null when an area was not scored. */
+  word: string | null;
+  overall: string | null;
+  scoreLabel: string | null;
+  resultEyebrow: string | null;
+  cohortDetail: { name: string; range: string | null; tagline: string | null; body: string | null } | null;
+  cohortScale: CohortTier[];
+  areas: AreaScore[];
   flags: Flag[];
-  // Set when the result came from the scoring API: the cohort tiers it was scored against, its
-  // path to the next cohort and its levers, all from the backend's config rather than the static one.
-  cohorts?: Quintile[];
-  path?: PathPlan;
-  leverIds?: DomainId[];
-  display?: ScoreDisplay;
-};
-
-/** Copy the scoring API sends with a result, shown on /score in place of the static copy. */
-export type ScoreDisplay = {
-  firstName: string | null;
-  /** Session date, YYYY-MM-DD. */
-  date: string | null;
-  age: number | null;
-  eyebrow: string | null;
-  cohortRange: string | null;
-  cohortTagline: string | null;
-  domainsHeading: string | null;
-  cohortCard: { eyebrow: string | null; title: string | null; body: string | null } | null;
-  levers: { domainId: DomainId; numeral: string; label: string; points: number; copy: string; color: string }[];
-  leversHeading: string | null;
-  leversFooter: string | null;
-  membership: {
-    mode: string;
-    eyebrow: string | null;
-    headline: string | null;
-    body: string | null;
-    bullets: string[];
-    button: string | null;
-    url: string | null;
-    priceNote: string | null;
-  } | null;
-  notMedicalNotice: string | null;
+  flagsFraming: string | null;
+  recorded: Recorded[];
+  membership: Membership;
   disclaimer: string | null;
-  reportButton: string | null;
-  /** Total change since Baseline; Week-8 retest only. */
-  delta: number | null;
-  /** The API's unrounded measurements behind the domain values. */
-  derived: {
-    rhrBpm: number | null;
-    ageBand: string | null;
-    waistToHeight: number | null;
-    systolic: number | null;
-    diastolic: number | null;
-    bpCategory: string | null;
-    who5Raw: number | null;
-    who5Percent: number | null;
-  };
-};
-
-export type PathMove = {
-  domainId: DomainId;
-  numeral: string;
-  name: string;
-  shortMetric: string;
-  color: string;
-  gain: number;
-  requirement: string;
-};
-
-export type PathPlan = {
-  next: Quintile | null;
-  gap: number;
-  moves: PathMove[];
+  configVersion: string;
+  /** Change in the total since baseline; null when the two totals are out of different numbers. */
+  deltaTotal: number | null;
+  baselineTotal: number | null;
+  baselineOutOf: number | null;
 };
 
 export type Participant = {
   firstName: string;
   email: string;
   age: number | null;
+  sex: Sex | null;
   fearWord: string;
   phase: Phase;
   marketingOptIn: boolean;
   dataConsent: boolean;
-};
-
-export type BpReading = {
-  systolic?: number | null;
-  diastolic?: number | null;
-};
-
-export type DomainInputState = {
-  readings?: Array<number | null> | BpReading[];
-  value?: number | null;
-  unit?: MeasureUnit;
-  waist?: number | null;
-  height?: number | null;
-  answers?: Array<number | null>;
 };
 
 export type Entry = {
@@ -341,20 +194,18 @@ export type Entry = {
   configVersion: string;
   participant: Participant;
   inputs: Record<string, DomainInputState>;
-  upgrades: Record<string, number | null>;
-  result: ScoreResult;
+  /** The scoring API's result for this session; null until it has been fetched. */
+  result: ScoreResult | null;
   baselineId: string | null;
   baselineTotal: number | null;
   /** Participant id from the lead submission, for GET api/participants/{id}/score. */
   participantId?: number | null;
-  /** "api" once `result` has been replaced by the scoring API's; "local" until then. */
-  scoreSource?: "api" | "local";
+  scoreSource?: "api" | "pending";
 };
 
 export type FlowState = {
   participant: Participant;
   inputs: Record<string, DomainInputState>;
-  upgrades: Record<string, number | null>;
   currentEntryId: string | null;
   /** Successful form POSTs by Statamic form handle; `key` is the payload that was sent. */
   submissions: Record<string, { key: string; submittedAt: string }>;
@@ -366,60 +217,6 @@ export type FlowState = {
   retestToken: string | null;
   /** The last step page (protocol, score or report) visited this session, reopened on return. */
   resumePath: string | null;
-};
-
-export type ScoringConfig = {
-  version: string;
-  configId: string;
-  updated: string;
-  source: string;
-  totalMax: number;
-  domainMax: number;
-  domains: Domain[];
-  quintiles: {
-    active: string;
-    sets: Record<string, Quintile[]>;
-  };
-  percentiles: {
-    enabled: boolean;
-    note: string;
-    disclosure: string;
-    domains: Record<string, unknown>;
-    upgrades: Record<string, unknown>;
-  };
-  path: {
-    title: string;
-    gapLine: string;
-    combo: string;
-    single: string;
-    topTitle: string;
-    topMessage: string;
-  };
-  flags: {
-    framing: string;
-    [flagId: string]:
-      | string
-      | { severity: Flag["severity"]; title: string; message: string };
-  };
-  resultCopy: {
-    scoreLabel: string;
-    framing: string;
-    retestFraming: string;
-    leverIntro: string;
-  };
-  honesty: {
-    footer: string;
-    bpCitation: string;
-  };
-  comparison: {
-    mode: string;
-    note: string;
-    compositeNote: string;
-  };
-  features: {
-    percentiles: boolean;
-    percentilesNote: string;
-  };
 };
 
 export type LeadTextField = LabelText & {
@@ -438,15 +235,36 @@ export type LeadFormContent = {
   firstName: LeadTextField;
   email: LeadTextField;
   age: LeadTextField;
+  sex: { label: string; options: { key: Sex; label: string }[]; note: string };
   fearWord: LeadTextField;
   marketingOptIn: LeadConsentField;
   dataConsent: LeadConsentField;
 };
 
+/** CMS copy for one protocol, merged over the static definition on the client (it must be serialisable). */
+export type ProtocolCopy = {
+  numeral?: string;
+  order?: number;
+  name?: string;
+  metric?: string;
+  tagline?: string;
+  stepTitle?: string;
+  howTo?: string[];
+  formHandle?: string;
+  /** Per field handle: label wording and option wording by option key. */
+  fields?: Record<string, { label?: string; opt?: string; hint?: string; options?: Record<string, string> }>;
+};
+
+/** What the server loads and hands to the client: copy only, never the rules. */
 export type SiteContent = {
-  config: ScoringConfig;
+  /** The scoring design the static protocol definitions capture for. */
+  version: string;
+  protocolCopy: Partial<Record<DomainId, ProtocolCopy>>;
   leadForm: LeadFormContent;
   source: "cms" | "static";
-  /** The backend's scoring config, needed to show its scores; null when it couldn't be fetched. */
+  /** The backend's scoring config (version, display copy); null when it couldn't be fetched. */
   scoring: ApiScoringConfig | null;
 };
+
+/** What components read: the static protocols with the CMS copy applied. */
+export type ResolvedContent = SiteContent & { config: ProtocolsConfig };

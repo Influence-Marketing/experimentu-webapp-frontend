@@ -16,7 +16,7 @@ import { useFlow } from "./FlowProvider";
 import { FieldLabel } from "./ui/FieldLabel";
 import { NumberField } from "./ui/NumberField";
 import { SegToggle } from "./ui/SegToggle";
-import type { Participant, Phase } from "@/lib/types";
+import type { Participant, Phase, Sex } from "@/lib/types";
 
 type FieldErrors = Partial<Record<keyof Participant, string>>;
 
@@ -87,7 +87,7 @@ export function WelcomeHero() {
         </p>
       </div>
       <div className="protocol-strip rise" style={{ "--i": 3 }}>
-        {config.domains.map((d) => (
+        {config.protocols.map((d) => (
           <div key={d.id} className="chip" style={{ "--chip-color": `var(--${d.color}-deep)` }}>
             <span className="n">{d.numeral}</span>
             <span className="t">{d.name.split(" ")[0]}</span>
@@ -164,7 +164,7 @@ export function WelcomeForm() {
   useEffect(() => {
     captureAttribution();
   }, []);
-  const firstProtocol = config.domains[0];
+  const firstProtocol = config.protocols[0];
   const target = "/protocol/1";
 
   const update = (patch: Partial<Participant>) => {
@@ -306,6 +306,20 @@ export function WelcomeForm() {
             ariaLabel="Age in years"
           />
           <FieldError message={fieldErrors.age} />
+        </div>
+        <div className="field-block">
+          <span className="field-label" id="lead-sex-label">
+            {leadForm.sex.label}
+          </span>
+          <SegToggle
+            options={leadForm.sex.options.map((o) => o.key) as Sex[]}
+            labels={leadForm.sex.options.map((o) => o.label)}
+            value={p.sex ?? ("" as Sex)}
+            onChange={(sex) => update({ sex })}
+            ariaLabel={leadForm.sex.label}
+          />
+          {leadForm.sex.note ? <p className="field-hint">{leadForm.sex.note}</p> : null}
+          <FieldError message={fieldErrors.sex} />
         </div>
         <div className="field-block">
           <FieldLabel label={leadForm.fearWord.label} opt={leadForm.fearWord.opt} htmlFor="lead-fear-word" />
