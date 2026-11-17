@@ -173,7 +173,7 @@ test("a week-8 retest opens from the emailed link and consumes it", async ({ pag
 
   await page.goto(`/retest?token=${token}`);
   await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("button", { name: /start my week-8 retest/i }).click();
+  await page.getByRole("button", { name: /start my retest/i }).click();
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: /week-8/i })).toHaveAttribute("aria-pressed", "true");

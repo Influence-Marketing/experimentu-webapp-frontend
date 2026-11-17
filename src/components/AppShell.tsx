@@ -35,14 +35,14 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
     if (pathname === "/result") {
       return (
         <>
-          Result · <b>{flow.participant.phase === "week8" ? "Week-8 retest" : "Baseline"}</b>
+          Result · <b>{flow.participant.phase === "week8" ? "Retest" : "Baseline"}</b>
         </>
       );
     }
     if (pathname.startsWith("/retest")) {
       return (
         <>
-          Week-8 · <b>Retest</b>
+          Your <b>Retest</b>
         </>
       );
     }

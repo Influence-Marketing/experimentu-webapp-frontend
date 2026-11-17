@@ -34,7 +34,7 @@ export function ReportSheet({ entry, onBack }: { entry: Entry; onBack: () => voi
     }
   };
   const subtitle = [
-    phase === "week8" ? "Week-8 retest" : "Baseline",
+    phase === "week8" ? "Retest" : "Baseline",
     participant.age != null ? `Age ${participant.age}` : null,
     entry.configVersion ? `Config v${entry.configVersion}` : null,
   ].filter(Boolean);

@@ -2,8 +2,8 @@ import type { ApiScoringConfig } from "./api/statamic";
 
 export type Phase = "baseline" | "week8";
 export type DomainId = "nervous" | "movement" | "metabolism" | "evidence" | "mindset";
-/** "F" woman, "M" man, "X" prefer not to say (HRV, sit-to-stand, grip and body fat are then not scored). */
-export type Sex = "F" | "M" | "X";
+/** "F" women's ranges, "M" men's ranges. Required: HRV, sit-to-stand, grip and body fat cannot be scored without it (client, 17 November). */
+export type Sex = "F" | "M";
 export type MeasureUnit = "in" | "cm";
 
 export type LabelText = { label: string; opt?: string };

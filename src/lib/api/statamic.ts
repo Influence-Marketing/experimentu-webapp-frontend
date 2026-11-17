@@ -53,7 +53,7 @@ export type LeadSubmissionPayload = {
   first_name: string;
   email: string;
   age: number | null;
-  /** "F", "M" or "X" (prefer not to say): the lead_form sex radio's option keys. */
+  /** "F" (women's ranges) or "M" (men's ranges): the lead_form sex radio's option keys. */
   sex?: string;
   one_word: string;
   promotional_email_agreement: 0 | 1;
@@ -411,7 +411,7 @@ export async function checkRetest(tokenOrEmail: string): Promise<RetestCheck> {
     // 404 (no baseline, unknown or expired link) and 410 (link already used) carry a message meant for
     // the guest; any other failure's message is a server error, which isn't.
     if ((res.status === 404 || res.status === 410) && body?.message) return refused("refused", body.message);
-    return refused("unreachable", "We couldn't check your Week-8 retest. Please try again in a moment.");
+    return refused("unreachable", "We couldn't check your retest. Please try again in a moment.");
   } catch {
     return refused("unreachable", "We couldn't reach the server. Check your connection and try again.");
   }
@@ -507,7 +507,7 @@ export async function submitForm(
   if (res.status === 422 && body?.requires_retest_token) {
     return {
       ok: false,
-      message: body.message ?? "Open your Week-8 retest from the link in your report email.",
+      message: body.message ?? "Open your retest from the link in your report email.",
       fieldErrors: {},
       retestRequired: true,
     };
@@ -516,7 +516,7 @@ export async function submitForm(
   if (res.status === 422 && body?.retest_week_8_date && body.errors?.session) {
     return {
       ok: false,
-      message: body.message ?? "Your Week-8 retest isn't open yet.",
+      message: body.message ?? "Your retest isn't open yet.",
       fieldErrors: {},
       retestNotOpen: { retestDate: body.retest_week_8_date },
     };
