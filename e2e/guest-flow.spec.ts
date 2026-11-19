@@ -19,10 +19,10 @@ async function passCaptcha(page: Page) {
 
 async function fillIntake(page: Page, opts: { email: string; phase?: "baseline" | "week8"; age?: number }) {
   await page.goto("/");
-  if (opts.phase === "week8") await page.getByRole("button", { name: /week-8/i }).click();
+  if (opts.phase === "week8") await page.getByRole("button", { name: /^retest$/i }).click(); // the session toggle says Retest since 17 November
   await page.getByLabel(/first name/i).fill("Bea");
   await page.getByLabel(/age in years/i).fill(String(opts.age ?? 52));
-  await page.getByRole("button", { name: /^woman$/i }).click();
+  await page.getByRole("button", { name: /^women's$/i }).click(); // "Which ranges should we compare you with?" (17 November)
   await page.getByLabel(/one word/i).fill("Falling");
   await page.locator(".consent-check").filter({ hasText: /health data/i }).locator("input").check();
   await passCaptcha(page);
@@ -58,7 +58,7 @@ test("baseline happy path scores the session from the backend", async ({ page })
   // Protocol II: sit-to-stand, three grip squeezes (dominant hand), activity
   await expect(page).toHaveURL(/\/protocol\/2/);
   await page.getByLabel(/full stands/i).fill("13");
-  await page.getByLabel(/first five stands/i).fill("9.4");
+  await expect(page.getByLabel(/more than 15 seconds for the first 5 stands/i)).not.toBeChecked(); // a box since 18 November, no time
   for (const [n, kg] of [["1", "23"], ["2", "24"], ["3", "22"]]) {
     await page.getByLabel(new RegExp(`^(Grip )?squeeze ${n} `, "i")).fill(kg);
   }
@@ -115,7 +115,7 @@ test("a not-scored reason completes a protocol without its readings", async ({ p
   // The lead submission also records consents and queues the CRM sync, so allow it time.
   await expect(page).toHaveURL(/\/protocol\/1/, { timeout: 30_000 });
   const next = page.getByRole("button", { name: /continue to protocol ii/i });
-  await page.getByLabel(/heart rate not scored because/i).selectOption("pacemaker");
+  await page.getByLabel(/heart medication, pacemaker or irregular heartbeat/i).selectOption("pacemaker");
   await expect(next).toBeDisabled();
   await page.getByLabel(/hours of sleep/i).fill("7");
   await page.getByRole("radiogroup", { name: /sleep quality|rate your sleep/i }).getByRole("radio", { name: /^good$/i }).click();
@@ -160,7 +160,7 @@ test("consent and sex are required before the intake can be submitted", async ({
   await page.locator(".consent-check").filter({ hasText: /health data/i }).locator("input").check();
   await passCaptcha(page);
   await expect(page.getByRole("button", { name: /begin protocol/i })).toBeDisabled();
-  await page.getByRole("button", { name: /prefer not to say/i }).click();
+  await page.getByRole("button", { name: /^men's$/i }).click(); // only women's or men's ranges since 17 November
   await expect(page.getByRole("button", { name: /begin protocol/i })).toBeEnabled();
 });
 
@@ -176,13 +176,13 @@ test("a week-8 retest opens from the emailed link and consumes it", async ({ pag
   await page.getByRole("button", { name: /start my retest/i }).click();
 
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("button", { name: /week-8/i })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /week-8/i })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^retest$/i })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^retest$/i })).toBeDisabled();
   await expect(page.getByText(/open from your personal link/i)).toBeVisible();
   await expect(page.getByLabel(/first name/i)).not.toHaveValue("");
 
   await page.getByLabel(/^email/i).fill(email!);
-  await page.getByRole("button", { name: /^woman$/i }).click();
+  await page.getByRole("button", { name: /^women's$/i }).click(); // "Which ranges should we compare you with?" (17 November)
   await page.getByLabel(/one word/i).fill("Heights");
   await page.locator(".consent-check").filter({ hasText: /health data/i }).locator("input").check();
   await passCaptcha(page);

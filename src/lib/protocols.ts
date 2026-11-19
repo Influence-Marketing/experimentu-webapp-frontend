@@ -109,7 +109,7 @@ const protocols: Protocol[] = [
     tagline: "Functional strength you can count.",
     stepTitle: "The protocol",
     howTo: [
-      "Standard chair, arms crossed: count full stands in 30 seconds and lap the timer at the fifth.",
+      "Standard chair, arms crossed: count full stands in 30 seconds. Tick the box if the first five stands took more than 15 seconds.",
       "Three grip squeezes on the dynamometer with the dominant hand. The best one is scored.",
       "Answer the three activity questions about a typical week.",
     ],
@@ -120,7 +120,8 @@ const protocols: Protocol[] = [
         title: "Sit-to-stand",
         fields: [
           { handle: "full_stands_in_30_seconds", kind: "number", label: "Full stands in 30 seconds", unit: "stands", min: 0, max: 60, placeholder: "14", width: "half" },
-          { handle: "five_stand_seconds", kind: "number", label: "Time for the first five stands", opt: "optional", unit: "s", min: 1, max: 120, step: 0.1, placeholder: "9.5", width: "half" },
+          // Alex, 18 November: no time is recorded for the first five stands, only this optional box (ticked scores needs attention).
+          { handle: "five_over_15s", kind: "toggle", label: "Took more than 15 seconds for the first 5 stands" },
           { handle: "used_arms", kind: "toggle", label: "Needed arms to stand" },
         ],
       },
