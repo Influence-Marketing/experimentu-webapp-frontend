@@ -8,12 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:member-sign-in": "node --test scripts/test-member-sign-in.cjs"
   },
   "dependencies": {
     "html-to-image": "1.11.13",
     "jspdf": "4.2.1",
-    "next": "15.5.9",
+    "next": "15.5.29",
     "pdfjs-dist": "6.4.299",
     "react": "19.1.0",
     "react-dom": "19.1.0"

@@ -101,7 +101,7 @@ export function WelcomeHero() {
 export function WelcomeForm() {
   const router = useRouter();
   const { config, leadForm } = useContent();
-  const { flow, ready: flowReady, setParticipant, markSubmitted } = useFlow();
+  const { flow, member, memberError, memberSignInAvailable, ready: flowReady, setParticipant, markSubmitted } = useFlow();
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -120,6 +120,7 @@ export function WelcomeForm() {
   const needsRetestCheck = p.phase === "week8" && !viaRetestLink;
   const check = retestCheck?.email === emailKey(p.email) ? retestCheck : null;
   const ready =
+    flowReady && !memberError &&
     intakeComplete(p) &&
     (!needsRetestCheck || check?.status === "open") &&
     (RECAPTCHA_SITE_KEY ? captchaToken != null : captchaPassed);
@@ -178,6 +179,7 @@ export function WelcomeForm() {
 
   // `retestConfirmed` resends after the "already submitted" popup, telling the API to go ahead.
   const begin = async (retestConfirmed = false) => {
+    if (!flowReady || memberError) return;
     // First-touch UTM / referrer / event ride along, as does the retest link's token.
     const payload = toLeadPayload(p, {
       ...captureAttribution(),
@@ -192,7 +194,7 @@ export function WelcomeForm() {
       ...payload,
       ...(retestConfirmed ? { retest_confirmed: true } : {}),
       ...(captchaToken ? { recaptcha_token: captchaToken } : {}),
-    });
+    }, null, Boolean(member));
     setSubmitting(false);
     if (!result.ok) {
       // A token the API turned down can't be used again: the guest ticks the box afresh.
@@ -230,8 +232,11 @@ export function WelcomeForm() {
     router.push(target);
   };
 
+  if (!flowReady) return <p role="status">Loading your assessment…</p>;
+  if (memberError) return <div role="alert"><p>We couldn’t check your member session.</p><a href="/auth/member/start">Reconnect your member account →</a></div>;
   return (
     <div>
+      {member ? <p className="field-hint">Signed in as {member.email}. Your assessment is linked to your member account.</p> : memberSignInAvailable && !kiosk ? <p className="field-hint">Already an Experiment U member? <a href="/auth/member/start">Continue with your member sign-in →</a></p> : null}
       <div className="rise" style={{ "--i": 4 }}>
         <div className="field-block phase-select">
           <span className="field-label" id="lead-session-label">
@@ -286,6 +291,7 @@ export function WelcomeForm() {
             placeholder={leadForm.email.placeholder}
             maxLength={leadForm.email.maxLength}
             value={p.email}
+            readOnly={Boolean(member)}
             onChange={(e) => update({ email: e.target.value })}
             onBlur={(e) => {
               if (needsRetestCheck) void checkWeek8(e.target.value);
