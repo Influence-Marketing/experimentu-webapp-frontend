@@ -16,7 +16,7 @@ import {
   setMemberStorageScope,
 } from "@/lib/storage";
 import { memberFlow, type MemberSessionPayload, type PortalMember } from "@/lib/member-session";
-import { isKiosk } from "@/lib/kiosk";
+import { applyKioskParam } from "@/lib/kiosk";
 import type { DomainId, DomainInputState, Entry, FlowState, Participant, Protocol } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 
@@ -83,7 +83,7 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
-      if (!isKiosk()) {
+      if (!applyKioskParam()) {
         try {
           const response = await fetch("/api/member/session", { cache: "no-store", signal: AbortSignal.timeout(15000) });
           if (!response.ok) throw new Error("Member session unavailable");
@@ -223,9 +223,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const reset = useCallback(() => {
-    if (member) { window.location.assign("/"); return; }
-    setFlow(resetStoredFlow());
-  }, [member]);
+    const fresh = member ? memberFlow({member, lead: null, forms: {}}, config.protocols) : emptyFlow();
+    setFlow(saveFlow(fresh));
+  }, [member, config.protocols]);
 
   const currentEntry = useMemo(() => {
     if (!flow.currentEntryId) return null;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
 import { captureAttribution } from "@/lib/attribution";
 import { isKiosk } from "@/lib/kiosk";
+import { memberSignInHref } from "@/lib/member-navigation";
 import { checkRetest, LEAD_FORM, submitForm } from "@/lib/api/statamic";
 import { intakeComplete, isEmail } from "@/lib/storage";
 import { PageDialog, type LegalPageSlug } from "./PageDialog";
@@ -233,10 +234,10 @@ export function WelcomeForm() {
   };
 
   if (!flowReady) return <p role="status">Loading your assessment…</p>;
-  if (memberError) return <div role="alert"><p>We couldn’t check your member session.</p><a href="/auth/member/start">Reconnect your member account →</a></div>;
+  if (memberError) return <div role="alert"><p>We couldn’t check your member session.</p><a href={memberSignInHref(flow.retestToken)}>Reconnect your member account →</a></div>;
   return (
     <div>
-      {member ? <p className="field-hint">Signed in as {member.email}. Your assessment is linked to your member account.</p> : memberSignInAvailable && !kiosk ? <p className="field-hint">Already an Experiment U member? <a href="/auth/member/start">Continue with your member sign-in →</a></p> : null}
+      {member ? <p className="field-hint">Signed in as {member.email}. Your assessment is linked to your member account.</p> : memberSignInAvailable && !kiosk ? <p className="field-hint">Already an Experiment U member? <a href={memberSignInHref(flow.retestToken)}>Continue with your member sign-in →</a></p> : null}
       <div className="rise" style={{ "--i": 4 }}>
         <div className="field-block phase-select">
           <span className="field-label" id="lead-session-label">

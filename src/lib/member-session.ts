@@ -22,6 +22,7 @@ export function memberFlow(session: MemberSessionPayload, protocols: Protocol[])
     age: typeof values.age === "number" ? values.age : Number(values.age) || null,
     sex: values.sex === "F" || values.sex === "M" ? values.sex : null,
     fearWord: typeof values.one_word === "string" ? values.one_word : "",
+    phase: values.session === "Week-8 Retest" ? "week8" : "baseline",
     marketingOptIn: values.promotional_email_agreement === true || values.promotional_email_agreement === 1 || values.promotional_email_agreement === "1",
     dataConsent: values.data_consent === true || values.data_consent === 1 || values.data_consent === "1",
   };

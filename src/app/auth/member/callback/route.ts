@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { safeMemberReturnPath } from "@/lib/member-navigation";
 import { cookieOptions, HANDOFF_COOKIE, MEMBER_COOKIE, memberAppOrigin, memberBackendUrl, PRIVATE_HEADERS } from "@/lib/member-auth-server";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     if (!upstream.ok || !/^[a-f0-9]{64}$/.test(session.session_token || "")) return fail();
     const lifetime = Math.min(14400, Math.floor((Date.parse(session.expires_at) - Date.now()) / 1000));
     if (!Number.isFinite(lifetime) || lifetime <= 0) return fail();
-    const response = NextResponse.redirect(new URL("/?member=1", origin), { headers: PRIVATE_HEADERS });
+    const response = NextResponse.redirect(new URL(safeMemberReturnPath(binding.returnPath)+"?member=1&kiosk=0", origin), { headers: PRIVATE_HEADERS });
     response.cookies.set(MEMBER_COOKIE, session.session_token, { ...cookieOptions, maxAge: lifetime });
     response.cookies.set(HANDOFF_COOKIE, "", { ...cookieOptions, maxAge: 0 });
     return response;

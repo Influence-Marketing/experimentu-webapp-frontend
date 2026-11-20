@@ -172,7 +172,7 @@ const protocols: Protocol[] = [
     numeral: "III",
     order: 3,
     name: "Metabolism",
-    metric: "Waist-to-height + fibre",
+    metric: "Waist-to-height + fiber",
     shortMetric: "Metabolism",
     color: "gold",
     tagline: "Where your body stores fat, and how your metabolism responds to food.",
@@ -180,7 +180,7 @@ const protocols: Protocol[] = [
     howTo: [
       "Tape midway between the lowest rib and the top of the hip bone, standing relaxed.",
       "Height from the start of the day, in the same units as the waist. The hip is not measured.",
-      "Answer the three fibre questions about a typical day and week.",
+      "Answer the three fiber questions about a typical day and week.",
     ],
     form: { handle: "protocol_iii_metabolism" },
     notScored: "metabolism_not_scored",
@@ -202,7 +202,7 @@ const protocols: Protocol[] = [
         ],
       },
       {
-        title: "Fibre",
+        title: "Fiber",
         fields: [
           { handle: "fibre_grains", kind: "number", label: "Whole-grain servings on a typical day", unit: "a day", min: 0, max: 10, placeholder: "2", width: "third" },
           { handle: "fibre_fruit_veg", kind: "number", label: "Fruit and vegetable servings on a typical day", unit: "a day", min: 0, max: 15, placeholder: "4", width: "third" },

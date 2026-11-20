@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { checkRetest, type ApiRetest } from "@/lib/api/statamic";
+import { memberSignInHref } from "@/lib/member-navigation";
 import { AppShell } from "./AppShell";
 import { useFlow } from "./FlowProvider";
 import { LoadingOverlay } from "./LoadingOverlay";
@@ -23,7 +24,7 @@ type State = { kind: "loading" } | { kind: "blocked"; notice: SubmissionNotice }
  */
 export function RetestEntry({ token }: { token: string }) {
   const router = useRouter();
-  const { ready, setParticipant, setRetestToken, reset } = useFlow();
+  const { ready, member, memberSignInAvailable, setParticipant, setRetestToken, reset } = useFlow();
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -50,6 +51,10 @@ export function RetestEntry({ token }: { token: string }) {
       // A retest link starts a fresh Week-8 session for the baseline guest: name, age and (when the
       // API sends it) email come from the baseline.
       const guest = result.retest.participant;
+      if (member && guest?.email?.trim().toLowerCase() !== member.email.trim().toLowerCase()) {
+        setState({kind:"blocked",notice:{kind:"retest-unavailable",message:"This retest link does not match the member account you’re signed into. Open the personal link for this account.",submissionDate:null,retestDate:null}});
+        return;
+      }
       reset();
       setParticipant({
         phase: "week8",
@@ -97,6 +102,7 @@ export function RetestEntry({ token }: { token: string }) {
                 : "This link is personal to you. On the next screen, enter the email you used for your baseline."}
           </p>
           <div className="btn-row">
+            {!member && memberSignInAvailable ? <a className="primary-btn" href={memberSignInHref(token)}>Continue with your member sign-in</a> : null}
             <button type="button" className="primary-btn" onClick={() => router.push("/")}>
               Start my retest
             </button>
