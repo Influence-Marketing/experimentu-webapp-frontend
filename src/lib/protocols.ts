@@ -204,9 +204,9 @@ const protocols: Protocol[] = [
       {
         title: "Fiber",
         fields: [
-          { handle: "fibre_grains", kind: "number", label: "Whole-grain servings on a typical day", unit: "a day", min: 0, max: 10, placeholder: "2", width: "third" },
-          { handle: "fibre_fruit_veg", kind: "number", label: "Fruit and vegetable servings on a typical day", unit: "a day", min: 0, max: 15, placeholder: "4", width: "third" },
-          { handle: "fibre_legumes", kind: "number", label: "Times a week you eat beans, lentils, nuts or seeds", unit: "a week", min: 0, max: 21, placeholder: "3", width: "third" },
+          { handle: "fiber_grains", kind: "number", label: "Whole-grain servings on a typical day", unit: "a day", min: 0, max: 10, placeholder: "2", width: "third" },
+          { handle: "fiber_fruit_veg", kind: "number", label: "Fruit and vegetable servings on a typical day", unit: "a day", min: 0, max: 15, placeholder: "4", width: "third" },
+          { handle: "fiber_legumes", kind: "number", label: "Times a week you eat beans, lentils, nuts or seeds", unit: "a week", min: 0, max: 21, placeholder: "3", width: "third" },
         ],
       },
       {
@@ -252,9 +252,9 @@ const protocols: Protocol[] = [
       has(i.metabolism_not_scored) ||
       (num(i.waist_at_navel) !== null &&
         num(i.height) !== null &&
-        num(i.fibre_grains) !== null &&
-        num(i.fibre_fruit_veg) !== null &&
-        num(i.fibre_legumes) !== null),
+        num(i.fiber_grains) !== null &&
+        num(i.fiber_fruit_veg) !== null &&
+        num(i.fiber_legumes) !== null),
     derivePayload: (i) => ({ wearing_a_cgm: i.wearing_a_cgm === true && num(i.average_glucose) !== null }),
   },
   {
