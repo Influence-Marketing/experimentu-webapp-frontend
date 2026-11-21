@@ -15,7 +15,7 @@ function runtime(overrides = {}) {
   const stores = () => { const m = new Map(); return { getItem: k => m.get(k) ?? null, setItem: (k,v) => m.set(k,v), removeItem: k => m.delete(k) }; };
   const context = vm.createContext({ Buffer, URL, URLSearchParams, Request, Response, Headers, AbortSignal, Date, console,
     process: { env: { NODE_ENV: 'production', USCORE_MEMBER_SSO_ENABLED: 'true', USCORE_APP_ORIGIN: app, NEXT_PUBLIC_API_BASE_URL: 'https://score-api.example.test/', ...overrides.env } },
-    fetch: async (...args) => { calls.push(args); return overrides.fetch ? overrides.fetch(...args) : Response.json({}); },
+    fetch: async (...args) => { calls.push(args); return overrides.fetch ? overrides.fetch(...args) : Response.json(String(args[0]).endsWith('/api/member/health') ? {ready:true} : {}); },
     window: { location: { search: overrides.search || '' } }, localStorage: stores(), sessionStorage: stores() });
   const cache = new Map();
   function load(file) {
@@ -112,7 +112,38 @@ test('direct visitors can find member sign-in only after the connection is enabl
   assert.equal((await (await enabled.load('app/api/member/session/route.ts').GET()).json()).sign_in_available, true);
   const disabled = runtime({env:{USCORE_MEMBER_SSO_ENABLED:'false'}});
   assert.equal((await (await disabled.load('app/api/member/session/route.ts').GET()).json()).sign_in_available, false);
-  assert.equal(enabled.calls.length + disabled.calls.length, 0);
+  assert.equal(enabled.calls.length, 1);
+  assert.equal(String(enabled.calls[0][0]), 'https://score-api.example.test/api/member/health');
+  assert.equal(disabled.calls.length, 0);
+});
+
+test('production enables the completed integration by default while local development and an explicit off switch do not', async () => {
+  const production = runtime({env:{USCORE_MEMBER_SSO_ENABLED:undefined}});
+  assert.equal(production.load('lib/member-auth-server.ts').memberAppOrigin(), app);
+  const development = runtime({env:{NODE_ENV:'development',USCORE_MEMBER_SSO_ENABLED:undefined}});
+  assert.equal(development.load('lib/member-auth-server.ts').memberAppOrigin(), null);
+  const off = runtime({env:{USCORE_MEMBER_SSO_ENABLED:'false'}});
+  assert.equal(off.load('lib/member-auth-server.ts').memberAppOrigin(), null);
+});
+
+test('an unready backend hides sign-in and cannot start a portal redirect or set a binding cookie', async () => {
+  const r = runtime({fetch:async()=>Response.json({ready:false},{status:503})});
+  const session = await r.load('app/api/member/session/route.ts').GET();
+  assert.equal(session.status, 200);
+  assert.equal((await session.json()).sign_in_available, false);
+  const start = await r.load('app/auth/member/start/route.ts').GET(new Request(app+'/auth/member/start'));
+  assert.equal(start.status, 503);
+  assert.equal(start.headers.get('location'), null);
+  assert.equal(start.headers.get('set-cookie'), null);
+});
+
+test('readiness network failures leave the existing guest flow available without advertising member sign-in', async () => {
+  const r = runtime({fetch:async()=>{throw new Error('offline');}});
+  const session = await r.load('app/api/member/session/route.ts').GET();
+  assert.equal(session.status, 200);
+  const body = await session.json();
+  assert.equal(body.member, null);
+  assert.equal(body.sign_in_available, false);
 });
 
 test('server-side member session token is forwarded only to the configured API', async () => {

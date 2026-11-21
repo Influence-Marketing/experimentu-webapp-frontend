@@ -2,11 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { safeMemberReturnPath } from "@/lib/member-navigation";
-import { cookieOptions, HANDOFF_COOKIE, memberAppOrigin, PORTAL_ORIGIN, PRIVATE_HEADERS } from "@/lib/member-auth-server";
+import { cookieOptions, HANDOFF_COOKIE, memberAppOrigin, memberBackendReady, PORTAL_ORIGIN, PRIVATE_HEADERS } from "@/lib/member-auth-server";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
-  if (!memberAppOrigin()) return NextResponse.json({ message: "Member sign-in is being prepared." }, { status: 503, headers: PRIVATE_HEADERS });
+  if (!memberAppOrigin() || !await memberBackendReady()) return NextResponse.json({ message: "Member sign-in is being prepared." }, { status: 503, headers: PRIVATE_HEADERS });
   const query = new URL(request.url).searchParams;
   let returnPath = safeMemberReturnPath(query.get("return_to"));
   if (!query.has("return_to")) {

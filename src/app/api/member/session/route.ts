@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookieOptions, MEMBER_COOKIE, memberAppOrigin, memberBackendFetch, memberSameOrigin, PRIVATE_HEADERS } from "@/lib/member-auth-server";
+import { cookieOptions, MEMBER_COOKIE, memberAppOrigin, memberBackendFetch, memberBackendReady, memberSameOrigin, PRIVATE_HEADERS } from "@/lib/member-auth-server";
 
 export const dynamic = "force-dynamic";
 export async function GET() {
@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const upstream = await memberBackendFetch("/api/member/session");
     if (!upstream || upstream.status === 401) {
-      const response = NextResponse.json({ member: null, sign_in_available: true }, { headers: PRIVATE_HEADERS });
+      const response = NextResponse.json({ member: null, sign_in_available: await memberBackendReady() }, { headers: PRIVATE_HEADERS });
       response.cookies.set(MEMBER_COOKIE, "", { ...cookieOptions, maxAge: 0 });
       return response;
     }

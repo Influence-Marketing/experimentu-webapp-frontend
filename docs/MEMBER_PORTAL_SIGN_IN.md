@@ -23,3 +23,9 @@ Run `node --test scripts/test-member-sign-in.cjs`, `npm run typecheck`, and `npm
 Next.js was patched from 15.5.9 to 15.5.29 because the installed version had a critical advisory. No major-version migration is included.
 
 Explicit member sign-in exits kiosk mode. Valid personal retest paths survive the sign-in round trip; external return URLs are rejected. Resetting a member assessment keeps the verified identity and does not interrupt the retest route.
+
+## Production activation
+
+When `NODE_ENV=production` and `USCORE_MEMBER_SSO_ENABLED` is unset, the completed member connection is enabled by default. An explicit `false` still disables it; development remains disabled by default. Existing configured HTTPS API/origin values continue to apply.
+
+Before showing or starting member sign-in, the frontend checks the backend's non-personal `/api/member/health` response. An unavailable backend hides member sign-in while leaving the existing guest flow usable. A failed check for an existing member session still blocks that session rather than falling back to guest data.
