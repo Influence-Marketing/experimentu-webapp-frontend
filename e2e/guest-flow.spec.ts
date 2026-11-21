@@ -67,7 +67,7 @@ test("baseline happy path scores the session from the backend", async ({ page })
   await page.getByLabel(/days (a week )?of muscle-strengthening/i).fill("0");
   await page.getByRole("button", { name: /continue to protocol iii/i }).click();
 
-  // Protocol III: inches by default; waist and height (the hip is not measured); fibre
+  // Protocol III: inches by default; waist and height (the hip is not measured); fiber
   await expect(page).toHaveURL(/\/protocol\/3/);
   await expect(page.getByRole("button", { name: /^inches$/i })).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel(/^waist$/i).fill("33");

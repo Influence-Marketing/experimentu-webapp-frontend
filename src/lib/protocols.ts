@@ -172,7 +172,7 @@ const protocols: Protocol[] = [
     numeral: "III",
     order: 3,
     name: "Metabolism",
-    metric: "Waist-to-height + fibre",
+    metric: "Waist-to-height + fiber",
     shortMetric: "Metabolism",
     color: "gold",
     tagline: "Where your body stores fat, and how your metabolism responds to food.",
@@ -180,7 +180,7 @@ const protocols: Protocol[] = [
     howTo: [
       "Tape midway between the lowest rib and the top of the hip bone, standing relaxed.",
       "Height from the start of the day, in the same units as the waist. The hip is not measured.",
-      "Answer the three fibre questions about a typical day and week.",
+      "Answer the three fiber questions about a typical day and week.",
     ],
     form: { handle: "protocol_iii_metabolism" },
     notScored: "metabolism_not_scored",
@@ -202,11 +202,11 @@ const protocols: Protocol[] = [
         ],
       },
       {
-        title: "Fibre",
+        title: "Fiber",
         fields: [
-          { handle: "fibre_grains", kind: "number", label: "Whole-grain servings on a typical day", unit: "a day", min: 0, max: 10, placeholder: "2", width: "third" },
-          { handle: "fibre_fruit_veg", kind: "number", label: "Fruit and vegetable servings on a typical day", unit: "a day", min: 0, max: 15, placeholder: "4", width: "third" },
-          { handle: "fibre_legumes", kind: "number", label: "Times a week you eat beans, lentils, nuts or seeds", unit: "a week", min: 0, max: 21, placeholder: "3", width: "third" },
+          { handle: "fiber_grains", kind: "number", label: "Whole-grain servings on a typical day", unit: "a day", min: 0, max: 10, placeholder: "2", width: "third" },
+          { handle: "fiber_fruit_veg", kind: "number", label: "Fruit and vegetable servings on a typical day", unit: "a day", min: 0, max: 15, placeholder: "4", width: "third" },
+          { handle: "fiber_legumes", kind: "number", label: "Times a week you eat beans, lentils, nuts or seeds", unit: "a week", min: 0, max: 21, placeholder: "3", width: "third" },
         ],
       },
       {
@@ -252,9 +252,9 @@ const protocols: Protocol[] = [
       has(i.metabolism_not_scored) ||
       (num(i.waist_at_navel) !== null &&
         num(i.height) !== null &&
-        num(i.fibre_grains) !== null &&
-        num(i.fibre_fruit_veg) !== null &&
-        num(i.fibre_legumes) !== null),
+        num(i.fiber_grains) !== null &&
+        num(i.fiber_fruit_veg) !== null &&
+        num(i.fiber_legumes) !== null),
     derivePayload: (i) => ({ wearing_a_cgm: i.wearing_a_cgm === true && num(i.average_glucose) !== null }),
   },
   {
