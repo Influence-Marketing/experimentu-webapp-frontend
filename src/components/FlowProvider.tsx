@@ -13,11 +13,17 @@ import {
   resetFlow as resetStoredFlow,
   saveFlow,
   updateEntry,
+  setMemberStorageScope,
 } from "@/lib/storage";
+import { memberFlow, type MemberSessionPayload, type PortalMember } from "@/lib/member-session";
+import { applyKioskParam } from "@/lib/kiosk";
 import type { DomainId, DomainInputState, Entry, FlowState, Participant, Protocol } from "@/lib/types";
 import { useContent } from "./ContentProvider";
 
 type FlowContextValue = {
+  member: PortalMember | null;
+  memberError: boolean;
+  memberSignInAvailable: boolean;
   ready: boolean;
   flow: FlowState;
   setParticipant: (patch: Partial<Participant> | Participant) => void;
@@ -70,19 +76,51 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [flow, setFlow] = useState<FlowState>(emptyFlow);
   const [resuming, setResuming] = useState(false);
+  const [member, setMember] = useState<PortalMember | null>(null);
+  const [memberError, setMemberError] = useState(false);
+  const [memberSignInAvailable, setMemberSignInAvailable] = useState(false);
 
   useEffect(() => {
-    let saved = loadFlow();
-    // Opening the intake starts a blank form, so no earlier visit's details are filled in. Only the
-    // retest link from the report email prefills it, and a session under way is resumed below.
-    if (pathname === "/" && !inProgress(saved, config.protocols) && saved.retestToken == null) saved = resetStoredFlow();
-    setFlow(saved);
-    // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
-    // load opened on counts, so going back to the intake from Protocol I still works.
-    if (pathname === "/" && saved.resumePath && isStepPath(saved.resumePath) && inProgress(saved, config.protocols)) {
-      setResuming(true);
-    }
-    setReady(true);
+    let cancelled = false;
+    const initialize = async () => {
+      if (!applyKioskParam()) {
+        try {
+          const response = await fetch("/api/member/session", { cache: "no-store", signal: AbortSignal.timeout(15000) });
+          if (!response.ok) throw new Error("Member session unavailable");
+          const session = await response.json() as MemberSessionPayload & { sign_in_available?: boolean };
+          if (cancelled) return;
+          setMemberSignInAvailable(session.sign_in_available === true);
+          if (session.member) {
+            setMemberStorageScope(session.member.id);
+            setMember(session.member);
+            const own = memberFlow(session, config.protocols);
+            setFlow(own);
+            if (pathname === "/" && own.resumePath) setResuming(true);
+            setReady(true);
+            return;
+          }
+          if (new URLSearchParams(window.location.search).get("member") === "1") throw new Error("Member session expired");
+        } catch {
+          if (!cancelled) { setMemberError(true); setReady(true); }
+          return;
+        }
+      }
+      if (cancelled) return;
+      setMemberStorageScope(null);
+      let saved = loadFlow();
+      // Opening the intake starts a blank form, so no earlier visit's details are filled in. Only the
+      // retest link from the report email prefills it, and a session under way is resumed below.
+      if (pathname === "/" && !inProgress(saved, config.protocols) && saved.retestToken == null) saved = resetStoredFlow();
+      setFlow(saved);
+      // Opening the site at "/" mid-session goes back to the step it left off on. Only the page this
+      // load opened on counts, so going back to the intake from Protocol I still works.
+      if (pathname === "/" && saved.resumePath && isStepPath(saved.resumePath) && inProgress(saved, config.protocols)) {
+        setResuming(true);
+      }
+      setReady(true);
+    };
+    void initialize();
+    return () => { cancelled = true; };
     // Runs once, on the page the site was opened on.
   }, []);
 
@@ -99,8 +137,8 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   // Coming back to the intake (e.g. Back from the result) after a finished session also starts afresh.
   const complete = ready && sessionComplete(flow, config.protocols);
   useEffect(() => {
-    if (complete && pathname === "/") setFlow(resetStoredFlow());
-  }, [complete, pathname]);
+    if (complete && pathname === "/" && !member) setFlow(resetStoredFlow());
+  }, [complete, pathname, member]);
 
   // Remember the step page the guest is on while the session is in progress.
   const active = ready && inProgress(flow, config.protocols);
@@ -112,9 +150,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   const setParticipant = useCallback((patch: Partial<Participant> | Participant) => {
     setFlow((prev) => ({
       ...prev,
-      participant: { ...prev.participant, ...patch },
+      participant: { ...prev.participant, ...patch, ...(member ? { email: member.email } : {}) },
     }));
-  }, []);
+  }, [member]);
 
   const setDomainInputs = useCallback((id: DomainId, inputs: DomainInputState) => {
     setFlow((prev) => ({
@@ -185,8 +223,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const reset = useCallback(() => {
-    setFlow(resetStoredFlow());
-  }, []);
+    const fresh = member ? memberFlow({member, lead: null, forms: {}}, config.protocols) : emptyFlow();
+    setFlow(saveFlow(fresh));
+  }, [member, config.protocols]);
 
   const currentEntry = useMemo(() => {
     if (!flow.currentEntryId) return null;
@@ -195,6 +234,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
+      member,
+      memberError,
+      memberSignInAvailable,
       ready,
       flow,
       setParticipant,
@@ -209,6 +251,9 @@ export function FlowProvider({ children }: { children: React.ReactNode }) {
       resuming,
     }),
     [
+      member,
+      memberError,
+      memberSignInAvailable,
       ready,
       flow,
       setParticipant,

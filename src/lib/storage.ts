@@ -4,6 +4,12 @@ import type { Entry, FlowState, Participant } from "./types";
 const ENTRIES_KEY = "u-score-entries-v2";
 const FLOW_KEY = "u-score-flow-v2";
 
+// Member caches are per account and per browser tab, separate from the guest/kiosk cache.
+let memberScope: string | null = null;
+export function setMemberStorageScope(subject: string | null) { memberScope = subject; }
+const storage = () => memberScope ? sessionStorage : localStorage;
+const storageKey = (key: string) => memberScope ? `u-score-member:${memberScope}:${key}` : key;
+
 const emptyParticipant = (): Participant => ({
   firstName: "",
   email: "",
@@ -29,7 +35,7 @@ export const emptyFlow = (): FlowState => ({
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(key);
+    const raw = storage().getItem(storageKey(key));
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -41,7 +47,7 @@ export function loadEntries(): Entry[] {
 }
 
 export function saveEntries(entries: Entry[]) {
-  localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
+  storage().setItem(storageKey(ENTRIES_KEY), JSON.stringify(entries));
   return entries;
 }
 
@@ -85,7 +91,7 @@ export function loadFlow(): FlowState {
 }
 
 export function saveFlow(flow: FlowState) {
-  localStorage.setItem(FLOW_KEY, JSON.stringify(flow));
+  storage().setItem(storageKey(FLOW_KEY), JSON.stringify(flow));
   return flow;
 }
 

@@ -460,13 +460,14 @@ export async function submitForm(
   handle: string,
   payload: LeadSubmissionPayload | ProtocolSubmissionPayload,
   token?: string | null,
+  memberIntake = false,
 ): Promise<SubmitResult> {
   if (!apiConfigured()) {
     return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL).", fieldErrors: {} };
   }
   let res: Response;
   try {
-    res = await fetch(apiUrl(endpoints.submitForm(handle)), {
+    res = await fetch(memberIntake && handle === LEAD_FORM ? "/api/member/intake" : apiUrl(endpoints.submitForm(handle)), {
       method: "POST",
       headers: {
         Accept: "application/json",

@@ -11,7 +11,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const pathname = usePathname();
   const router = useRouter();
   const { config, scoring } = useContent();
-  const { flow, reset } = useFlow();
+  const { flow, member, reset } = useFlow();
   const [openPage, setOpenPage] = useState<LegalPageSlug | null>(null);
   const protocolIndex = config.protocols.findIndex((_, i) => pathname === `/protocol/${i + 1}`);
   const isProtocol = protocolIndex >= 0;
@@ -103,6 +103,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       </header>
       <main className={`app-main${wide ? " wide" : ""}`}>{children}</main>
       <footer className="app-footer no-print">
+        {member ? <div style={{marginBottom:12}}><a href="https://experimentu.joinajenda.com/dashboard">Return to your member hub →</a>{" · "}<form style={{display:"inline"}} action="/api/member/session" method="post"><button type="submit">Sign out of U Score</button></form></div> : null}
         {LEGAL_PAGES.map((page) => (
           <Fragment key={page.slug}>
             <button type="button" onClick={() => setOpenPage(page.slug)}>

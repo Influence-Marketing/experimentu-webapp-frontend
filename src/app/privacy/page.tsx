@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <b>Your five areas:</b> HRV with two sleep questions; sit-to-stand, grip strength and three
-            activity questions; waist and height with three fibre questions; body fat from the InBody scan;
+            activity questions; waist and height with three fiber questions; body fat from the InBody scan;
             the WHO-5 well-being questions and three questions about connection.
           </li>
           <li>

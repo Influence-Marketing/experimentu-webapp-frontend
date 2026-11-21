@@ -20,10 +20,11 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
+    if (!ready) return;
     const found = findEntry(token);
     if (found) setEntry(found);
     else setMissing(true);
-  }, [token]);
+  }, [token, ready]);
 
   // The guest's own result goes back to the reveal; any other report back to the start.
   const backTo = flow.currentEntryId === token ? "/result" : "/";
