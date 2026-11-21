@@ -9,12 +9,21 @@ export const HANDOFF_COOKIE = secureCookie ? "__Host-uscore-handoff" : "uscore-h
 export const cookieOptions = { httpOnly: true, secure: secureCookie, sameSite: "lax" as const, path: "/" };
 
 export function memberAppOrigin() {
-  if (process.env.USCORE_MEMBER_SSO_ENABLED !== "true") return null;
+  const enabled = process.env.USCORE_MEMBER_SSO_ENABLED ?? (process.env.NODE_ENV === "production" ? "true" : "false");
+  if (enabled !== "true") return null;
   try {
     const url = new URL(process.env.USCORE_APP_ORIGIN || "https://uscore.joinajenda.com");
     if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
     return url.origin;
   } catch { return null; }
+}
+
+export async function memberBackendReady() {
+  try {
+    const response = await fetch(memberBackendUrl("/api/member/health"), { cache: "no-store", redirect: "error",
+      signal: AbortSignal.timeout(5000), headers: { Accept: "application/json" } });
+    return response.ok && (await response.json()).ready === true;
+  } catch { return false; }
 }
 
 export function memberBackendUrl(path: string) {
