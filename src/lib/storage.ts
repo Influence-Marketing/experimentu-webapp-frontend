@@ -123,7 +123,6 @@ export function intakeComplete(p: Participant) {
     (p.age ?? 0) >= 18 &&
     (p.age ?? 0) <= 105 &&
     p.sex !== null &&
-    p.fearWord.trim().length > 0 &&
     p.dataConsent === true
   );
 }
