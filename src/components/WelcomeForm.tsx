@@ -6,7 +6,7 @@ import { leadFieldByHandle, toLeadPayload } from "@/lib/api/mappers";
 import { captureAttribution } from "@/lib/attribution";
 import { isKiosk } from "@/lib/kiosk";
 import { memberSignInHref } from "@/lib/member-navigation";
-import { checkRetest, LEAD_FORM, submitForm } from "@/lib/api/statamic";
+import { checkRetest, LEAD_FORM, requestRetestLink, submitForm } from "@/lib/api/statamic";
 import { intakeComplete, isEmail } from "@/lib/storage";
 import { PageDialog, type LegalPageSlug } from "./PageDialog";
 import { RecaptchaCheckbox, type RecaptchaHandle } from "./RecaptchaCheckbox";
@@ -22,7 +22,15 @@ import type { Participant, Phase, Sex } from "@/lib/types";
 type FieldErrors = Partial<Record<keyof Participant, string>>;
 
 /** The Week-8 retest check for one email: "closed" when it can't start now, "unreachable" when it couldn't be asked. */
-type RetestCheckState = { email: string; status: "checking" | "open" | "closed" | "unreachable" };
+type RetestCheckState = {
+  email: string;
+  status: "checking" | "open" | "closed" | "unreachable";
+  /** Open, but the email alone won't start it: the guest needs the link we email them. */
+  linkRequired?: boolean;
+};
+
+/** "Email me my retest link" for one email: sending, sent (to the masked address), or the API's refusal. */
+type RetestLinkState = { email: string; status: "sending" | "sent" | "failed"; message: string };
 
 const emailKey = (email: string) => email.trim().toLowerCase();
 
@@ -111,6 +119,7 @@ export function WelcomeForm() {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaPassed, setCaptchaPassed] = useState(false);
   const [retestCheck, setRetestCheck] = useState<RetestCheckState | null>(null);
+  const [retestLink, setRetestLink] = useState<RetestLinkState | null>(null);
   const latestCheck = useRef<string | null>(null);
   const captcha = useRef<RecaptchaHandle>(null);
   const p = flow.participant;
@@ -120,10 +129,14 @@ export function WelcomeForm() {
   // open for the email typed; the link was already checked on its own page.
   const needsRetestCheck = p.phase === "week8" && !viaRetestLink;
   const check = retestCheck?.email === emailKey(p.email) ? retestCheck : null;
+  // With the retest link required (a control-panel setting), a retest picked here can't start from the
+  // email alone: the guest asks for the link by email and opens the retest from it.
+  const needsLink = needsRetestCheck && check?.status === "open" && check.linkRequired === true;
+  const link = retestLink?.email === emailKey(p.email) ? retestLink : null;
   const ready =
     flowReady && !memberError &&
     intakeComplete(p) &&
-    (!needsRetestCheck || check?.status === "open") &&
+    (!needsRetestCheck || (check?.status === "open" && !needsLink)) &&
     (RECAPTCHA_SITE_KEY ? captchaToken != null : captchaPassed);
 
   // Asks the API whether this email's Week-8 retest is open, every time it's called; any other answer
@@ -137,11 +150,24 @@ export function WelcomeForm() {
     // A newer email was asked about in the meantime.
     if (latestCheck.current !== key) return;
     if (result.ok) {
-      setRetestCheck({ email: key, status: "open" });
+      setRetestCheck({ email: key, status: "open", linkRequired: result.retest.link_required === true });
       return;
     }
     setRetestCheck({ email: key, status: result.reason === "unreachable" ? "unreachable" : "closed" });
     setNotice(retestNotice(result));
+  };
+
+  // Emails the guest their retest link, to the address on file for the email typed.
+  const emailRetestLink = async () => {
+    const key = emailKey(p.email);
+    if (!isEmail(key)) return;
+    setRetestLink({ email: key, status: "sending", message: "" });
+    const result = await requestRetestLink(key);
+    setRetestLink(
+      result.ok
+        ? { email: key, status: "sent", message: `We've emailed your retest link${result.to ? ` to ${result.to}` : ""}. Open it to start your retest.` }
+        : { email: key, status: "failed", message: result.message },
+    );
   };
 
   // Back on the intake mid-session (e.g. from Protocol I) with a Week-8 email already in: check it again.
@@ -154,7 +180,9 @@ export function WelcomeForm() {
   const week8Hint =
     check?.status === "checking"
       ? "Checking your retest…"
-      : check?.status === "open"
+      : needsLink
+        ? "Your retest is open. It starts from a private link, sent to your email so only you can open it."
+        : check?.status === "open"
         ? "Your retest is open."
         : check?.status === "closed"
           ? "The retest isn't available for this email yet."
@@ -262,6 +290,18 @@ export function WelcomeForm() {
             <p className="field-hint" aria-live="polite">
               {week8Hint}
             </p>
+          ) : null}
+          {needsLink ? (
+            <div className="retest-link-request">
+              <button type="button" className="ghost-btn" disabled={link?.status === "sending"} onClick={emailRetestLink}>
+                {link?.status === "sending" ? "Sending…" : link?.status === "sent" ? "Email it again" : "Email me my retest link"}
+              </button>
+              {link && link.status !== "sending" ? (
+                <p className={link.status === "sent" ? "field-hint" : "field-error"} role="status">
+                  {link.message}
+                </p>
+              ) : null}
+            </div>
           ) : null}
           <FieldError message={fieldErrors.phase} />
         </div>

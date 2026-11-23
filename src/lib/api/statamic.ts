@@ -235,6 +235,11 @@ export type ApiRetest = {
   phase: "week8";
   baseline_completed_at: string | null;
   retest_starts_at: string | null;
+  /**
+   * On an email lookup: whether the retest must be opened from an emailed link. True means the email
+   * alone won't start it, so the intake offers to email the link (requestRetestLink).
+   */
+  link_required?: boolean;
   participant?: { first_name: string; masked_email: string; email?: string | null; age: number | null };
   baseline?: {
     session_id: string | number;
@@ -290,6 +295,8 @@ export const endpoints = {
   participantReport: (id: number, phase: "baseline" | "week8") => `api/participants/${id}/report/${phase}`,
   // A retest link's token, or the email a Week-8 retest was typed in with.
   retest: (tokenOrEmail: string) => `api/retest/${encodeURIComponent(tokenOrEmail)}`,
+  // Emails a guest their retest link, to the address on file.
+  retestLink: "api/retest/link",
   fearWall: (event: string) => `api/fear-wall${event ? `?event=${encodeURIComponent(event)}` : ""}`,
   // Honesty & Privacy, Terms and Conditions, Health Data Collection, …
   pages: "api/collections/pages/entries",
@@ -414,6 +421,32 @@ export async function checkRetest(tokenOrEmail: string): Promise<RetestCheck> {
     return refused("unreachable", "We couldn't check your retest. Please try again in a moment.");
   } catch {
     return refused("unreachable", "We couldn't reach the server. Check your connection and try again.");
+  }
+}
+
+export type RetestLinkResult = { ok: true; to: string | null } | { ok: false; message: string };
+
+/**
+ * POST api/retest/link from the browser: asks the API to email this guest their retest link. It goes
+ * to the address on file for that email, so only its owner can open it. The API's own message when it
+ * says no (no baseline, not open yet, asked a moment ago), a generic one otherwise.
+ */
+export async function requestRetestLink(email: string): Promise<RetestLinkResult> {
+  if (!apiConfigured()) return { ok: false, message: "The API isn't configured (NEXT_PUBLIC_API_BASE_URL)." };
+  try {
+    const res = await fetch(apiUrl(endpoints.retestLink), {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = (await res.json().catch(() => null)) as { sent?: boolean; to?: string; message?: string } | null;
+    if (res.ok && body?.sent) return { ok: true, to: body.to ?? null };
+    if ([404, 422, 429].includes(res.status) && body?.message) return { ok: false, message: body.message };
+    return { ok: false, message: "We couldn't send your retest link. Please try again in a moment." };
+  } catch {
+    return { ok: false, message: "We couldn't reach the server. Check your connection and try again." };
   }
 }
 

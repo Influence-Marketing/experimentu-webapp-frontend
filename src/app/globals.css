@@ -96,3 +96,6 @@
 .pdf-export .report-table td.rt-pts{text-align:left}
 .pdf-export .report-table td.rt-comparison{font-size:.82rem;color:var(--ink-soft)}
 .pdf-export .rise{animation:none!important;opacity:1!important;transform:none!important}
+
+/* Intake: asking for the retest link by email (shown while the link is required). */
+.retest-link-request{margin:12px 0 20px}.retest-link-request .ghost-btn{min-height:44px;padding:0 18px}.retest-link-request p{margin:10px 0 0}
