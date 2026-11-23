@@ -22,7 +22,7 @@ export const leadFormConfig: LeadFormContent = {
   },
   fearWord: {
     label: "One word",
-    opt: "your biggest health fear",
+    opt: "your biggest health fear (optional)",
     placeholder: "invisible",
     maxLength: 24,
     note: "Anonymous. Your word joins the fear wall — never with your name on it.",
