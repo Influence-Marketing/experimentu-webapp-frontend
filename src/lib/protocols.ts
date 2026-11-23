@@ -96,7 +96,8 @@ const protocols: Protocol[] = [
         ],
       },
     ],
-    complete: (i) => (has(i.hrv_ms) || has(i.rhr_seated_1) || has(i.hr_not_scored)) && num(i.sleep_hours) !== null && has(i.sleep_quality),
+    // The HRV reading is the test: the seated resting heart rate is recorded only and does not stand in for it.
+    complete: (i) => (num(i.hrv_ms) !== null || has(i.hr_not_scored)) && num(i.sleep_hours) !== null && has(i.sleep_quality),
   },
   {
     id: "movement",
